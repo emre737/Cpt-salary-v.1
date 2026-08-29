@@ -126,14 +126,43 @@
     .tag.train{background:#fff1e8; color:#a75a1d}
     .foot{margin-top:12px; color:#cfd7eb; font-size:13px; text-align:center}
     .accent-link{color:#c4d7ff}
+
+    .hero-top{display:flex; align-items:flex-start; justify-content:space-between; gap:16px}
+    .hero-copy{min-width:0}
+    .hero-emblem{
+      width:52px; height:52px; flex:0 0 52px;
+      border-radius:16px; display:grid; place-items:center;
+      background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.18);
+      box-shadow:0 10px 24px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.12);
+      backdrop-filter:blur(8px)
+    }
+    .hero-emblem svg{width:30px;height:30px;display:block}
+
   </style>
 </head>
 <body>
   <div class="wrap">
     <section class="hero">
-      <div class="pill">Premium iPhone dashboard</div>
-      <h1>Roster Pay</h1>
-      <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
+      <div class="hero-top">
+        <div class="hero-copy">
+          <div class="pill">V4.3 ACTIVE</div>
+          <h1>Roster Pay</h1>
+          <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
+        </div>
+        <div class="hero-emblem" aria-label="Sun emblem">
+          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="sunG1" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#8db4ff"/>
+                <stop offset="100%" stop-color="#67e2cc"/>
+              </linearGradient>
+            </defs>
+            <path d="M32 10l3.2 10h-6.4L32 10Zm-10.5 4.3 6.7 8.1-5.8 2.7-0.9-10.8Zm21 0-.9 10.8-5.8-2.7 6.7-8.1ZM14.5 25.8l10.2 3.2-4.1 5-6.1-8.2Zm35 0-6.1 8.2-4.1-5 10.2-3.2ZM11 38h12l-2.8 6H11v-6Zm42 0v6h-9.2L41 38H53Z" fill="url(#sunG1)"/>
+            <path d="M18 46c4.2-3.8 8.9-5.7 14-5.7s9.8 1.9 14 5.7H18Z" fill="#ffffff" opacity="0.96"/>
+            <path d="M22 49h20c-2.2 2.1-5.6 4-10 4s-7.8-1.9-10-4Z" fill="#ffb54a"/>
+          </svg>
+        </div>
+      </div>
     </section>
 
     <section class="section">
@@ -240,7 +269,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · v4 · TRI 6h SIM + Hotel Auto</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V4.3 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -507,21 +536,29 @@ function findReturn(cells, hotelDay, station){
 
 function detectLayovers(cells){
   const hotelCells=cells.filter(c=>(c.hotels||[]).length || /\bHotel\b/i.test(cellText(c)));
-  const groups=[];
 
+  // First collect hotel markers. Multiple "Hotel" lines belonging to the same
+  // overnight rest can occur in two adjacent calendar cells; merge them.
+  const markers=[];
   for(const c of hotelCells){
     const station=inferHotelStation(c);
     if(!station) continue;
+    markers.push({station,day:c.day});
+  }
+  markers.sort((a,b)=>a.day-b.day || a.station.localeCompare(b.station));
+
+  const groups=[];
+  for(const m of markers){
     const prev=groups[groups.length-1];
-    if(prev && prev.station===station && c.day<=prev.lastHotelDay+1){
-      prev.lastHotelDay=c.day;
-      prev.hotelDays.push(c.day);
+    if(prev && prev.station===m.station && m.day<=prev.lastHotelDay+1){
+      prev.lastHotelDay=Math.max(prev.lastHotelDay,m.day);
+      if(!prev.hotelDays.includes(m.day)) prev.hotelDays.push(m.day);
     }else{
-      groups.push({station,firstHotelDay:c.day,lastHotelDay:c.day,hotelDays:[c.day]});
+      groups.push({station:m.station,firstHotelDay:m.day,lastHotelDay:m.day,hotelDays:[m.day]});
     }
   }
 
-  return groups.map(g=>{
+  let stays=groups.map(g=>{
     const out=findOutboundTime(cells,g.firstHotelDay,g.station);
     const ret=findReturn(cells,g.lastHotelDay,g.station);
 
@@ -532,18 +569,17 @@ function detectLayovers(cells){
 
     let equivalentDays=0;
     if(startDay===endDay){
-      // Same-day away trip with hotel: only count when it genuinely qualifies.
-      equivalentDays = (startH!=null && startH<14 && endH!=null && endH>14) ? 1 : 0.5;
+      equivalentDays=(startH!=null && startH<14 && endH!=null && endH>14)?1:0.5;
     }else{
-      // Departure day: before 14:00 = full, otherwise 0.
-      if(startH!=null && startH<14) equivalentDays += 1;
+      // Departure day: full only if leaving base before 14:00 local.
+      if(startH!=null && startH<14) equivalentDays+=1;
 
-      // Full calendar days between departure and return.
-      equivalentDays += Math.max(0,endDay-startDay-1);
+      // Calendar days fully spent away from base.
+      equivalentDays+=Math.max(0,endDay-startDay-1);
 
-      // Return day: until 14:00 = half, after 14:00 = full.
-      if(endH!=null) equivalentDays += endH<=14 ? 0.5 : 1;
-      else equivalentDays += 0.5;
+      // Return day: <=14:00 half, >14:00 full.
+      if(endH!=null) equivalentDays+=endH<=14?0.5:1;
+      else equivalentDays+=0.5;
     }
 
     return {
@@ -553,8 +589,31 @@ function detectLayovers(cells){
       days:equivalentDays
     };
   });
-}
 
+  // Deduplicate overlapping/identical stays created by split Hotel text.
+  // Same station + overlapping trip window = one physical layover.
+  stays.sort((a,b)=>a.startDay-b.startDay || a.endDay-b.endDay);
+  const dedup=[];
+  for(const s of stays){
+    const same=dedup.find(x =>
+      x.station===s.station &&
+      s.startDay<=x.endDay &&
+      s.endDay>=x.startDay
+    );
+    if(!same){
+      dedup.push({...s});
+    }else{
+      // Keep the widest interval, never add the days twice.
+      same.startDay=Math.min(same.startDay,s.startDay);
+      same.endDay=Math.max(same.endDay,s.endDay);
+      if(!same.startTime && s.startTime) same.startTime=s.startTime;
+      if(!same.endTime && s.endTime) same.endTime=s.endTime;
+      same.days=Math.max(same.days,s.days);
+    }
+  }
+
+  return dedup;
+}
 function applyLayovers(cells){
   const stays=detectLayovers(cells);
   let domEq=0,intEq=0;
@@ -569,8 +628,9 @@ function applyLayovers(cells){
   $('intFull').value=intFull;
   $('intHalf').value=intHalf;
 
+  const autoLayEuro=domEq*30+intEq*50;
   $('hotelAutoSummary').textContent = stays.length
-    ? `İç hat ${domEq.toFixed(1).replace('.',',')} gün · Dış hat ${intEq.toFixed(1).replace('.',',')} gün`
+    ? `İç hat ${domEq.toFixed(1).replace('.',',')} gün · Dış hat ${intEq.toFixed(1).replace('.',',')} gün · ${eur(autoLayEuro)}`
     : 'Hotel kaydı bulunamadı.';
 
   $('hotelAutoCards').innerHTML = stays.map(s=>`
@@ -710,7 +770,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='PDF okundu · v4 · Görev '+activeDuties.length+' · SIM '+hhmm(activeDuties.reduce((s,d)=>s+(d.simExtra||0),0))+' · TRI '+$('triEdit').value;
+    $('status').textContent='V4.3 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM '+hhmm(activeDuties.reduce((s,d)=>s+(d.simExtra||0),0))+' · TRI '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
@@ -721,7 +781,15 @@ btn.addEventListener('click', async ()=>{
 ['trainingDays'].forEach(id => $(id).addEventListener('input', ()=>activeDuties.length && recalc()));
 ['dutyEdit','nightEdit','sectorEdit','triEdit','domFull','domHalf','intFull','intHalf','fx'].forEach(id => $(id).addEventListener('input', calcPay));
 
-if('serviceWorker' in navigator){ navigator.serviceWorker.register('./sw.js').catch(()=>{}); }
+
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(()=>{});
+}
+if ('caches' in window) {
+  caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).catch(()=>{});
+}
+
 </script>
 </body>
 </html>
