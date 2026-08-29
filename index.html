@@ -130,13 +130,11 @@
     .hero-top{display:flex; align-items:flex-start; justify-content:space-between; gap:16px}
     .hero-copy{min-width:0}
     .hero-emblem{
-      width:52px; height:52px; flex:0 0 52px;
-      border-radius:16px; display:grid; place-items:center;
-      background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.18);
-      box-shadow:0 10px 24px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.12);
-      backdrop-filter:blur(8px)
+      width:72px; height:72px; flex:0 0 72px;
+      display:grid; place-items:center;
+      filter:drop-shadow(0 10px 16px rgba(0,0,0,.25));
     }
-    .hero-emblem svg{width:30px;height:30px;display:block}
+    .hero-emblem svg{width:68px;height:68px;display:block}
 
   </style>
 </head>
@@ -145,21 +143,34 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V4.3 ACTIVE</div>
+          <div class="pill">V4.6 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
         <div class="hero-emblem" aria-label="Sun emblem">
-          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <defs>
-              <linearGradient id="sunG1" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="#8db4ff"/>
-                <stop offset="100%" stop-color="#67e2cc"/>
+              <linearGradient id="rayG" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#EAF3FF"/>
+                <stop offset="100%" stop-color="#9FCBFF"/>
+              </linearGradient>
+              <linearGradient id="seaG" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#1D4ED8"/>
+                <stop offset="100%" stop-color="#0F2D6B"/>
               </linearGradient>
             </defs>
-            <path d="M32 10l3.2 10h-6.4L32 10Zm-10.5 4.3 6.7 8.1-5.8 2.7-0.9-10.8Zm21 0-.9 10.8-5.8-2.7 6.7-8.1ZM14.5 25.8l10.2 3.2-4.1 5-6.1-8.2Zm35 0-6.1 8.2-4.1-5 10.2-3.2ZM11 38h12l-2.8 6H11v-6Zm42 0v6h-9.2L41 38H53Z" fill="url(#sunG1)"/>
-            <path d="M18 46c4.2-3.8 8.9-5.7 14-5.7s9.8 1.9 14 5.7H18Z" fill="#ffffff" opacity="0.96"/>
-            <path d="M22 49h20c-2.2 2.1-5.6 4-10 4s-7.8-1.9-10-4Z" fill="#ffb54a"/>
+            <g fill="url(#rayG)">
+              <path d="M48 7l4 18h-8z"/>
+              <path d="M29 12l10 16-7 3z"/>
+              <path d="M67 12l-3 19-7-3z"/>
+              <path d="M15 26l17 10-4 6z"/>
+              <path d="M81 26L68 42l-4-6z"/>
+              <path d="M9 47l19 3-1 7z"/>
+              <path d="M87 47l-18 10-1-7z"/>
+            </g>
+            <path d="M20 58c7-10 17-15 28-15s21 5 28 15H20z" fill="#FFFFFF"/>
+            <path d="M24 61h48c-4 6-12 11-24 11s-20-5-24-11z" fill="#FF8A00"/>
+            <path d="M19 73h58c-7 9-17 14-29 14S26 82 19 73z" fill="url(#seaG)"/>
           </svg>
         </div>
       </div>
@@ -228,7 +239,7 @@
 
       <section class="panel soft-section">
         <h3>Otomatik yatılar</h3>
-        <div id="hotelAutoSummary" class="muted-note">PDF okunduktan sonra yatılar burada görünecek.</div>
+        <div id="hotelAutoSummary" class="muted-note">PDF okunduktan sonra gerçek Hotel istasyonları burada görünecek; DH/Travel transfer noktaları yatı sayılmaz.</div>
         <div id="hotelAutoCards" class="break-grid" style="margin-top:12px"></div>
       </section>
 
@@ -260,7 +271,7 @@
           <table>
             <thead>
               <tr>
-                <th>Gün</th><th>Report</th><th>Release</th><th>Tip</th><th>Duty</th><th>Night</th><th>Sektör</th><th>SIM extra</th>
+                <th>Gün</th><th>Report</th><th>Release</th><th>Tip</th><th>Duty</th><th>Night</th><th>Sektör</th><th>SIM eğitim</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
@@ -269,7 +280,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V4.3 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V4.6 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -346,17 +357,42 @@ function parseCell(day, lines){
     if(/\bHotel\b/i.test(line)){
       let station=(line.match(/Hotel\s+([A-Z]{3})/i)||[])[1]||'';
       let ts=times(line);
-
-      // Infer station/times from nearby lines when PDF splits "Hotel" content.
-      for(let j=Math.max(0,i-2);j<=Math.min(lines.length-1,i+2);j++){
-        if(j===i) continue;
-        const neighbor=lines[j];
-        if(!station){
-          const codes=[...neighbor.matchAll(/\b([A-Z]{3})\b/g)].map(m=>m[1]);
-          station=codes.find(c=>c!=='ADB' && !['OFF','SIM'].includes(c))||station;
-        }
-        ts=ts.concat(times(neighbor));
+      const nearby=[];
+      for(let j=Math.max(0,i-3);j<=Math.min(lines.length-1,i+3);j++){
+        if(j!==i) nearby.push(lines[j]);
       }
+
+      // IMPORTANT: A DH/Travel airport can be only a transfer point (e.g. AYT on the way to KYA).
+      // Never use arbitrary first IATA code for Hotel station. Priority is:
+      // Hotel explicit > Transit > Report/Release > SIM > hotel-adjacent route destination.
+      if(!station){
+        for(const n of nearby){
+          let m=n.match(/\bTransit\s+([A-Z]{3})\b/i);
+          if(m && m[1]!=='ADB'){ station=m[1]; break; }
+        }
+      }
+      if(!station){
+        for(const n of nearby){
+          let m=n.match(/\b(?:Report|Release)\s+\d{1,2}:\d{2}\s+([A-Z]{3})\b/i);
+          if(m && m[1]!=='ADB'){ station=m[1]; break; }
+        }
+      }
+      if(!station){
+        for(const n of nearby){
+          let m=n.match(/\bBOEING-[A-Z]\s+([A-Z]{3})\b/i);
+          if(m && m[1]!=='ADB'){ station=m[1]; break; }
+        }
+      }
+      if(!station){
+        // Last resort only: destination of a route line nearest Hotel.
+        // Travel/DH ORIGIN is deliberately ignored to avoid AYT/KYA double counting.
+        for(const n of nearby){
+          let m=n.match(/~\s*\d{1,2}:\d{2}\s+([A-Z]{3})\b/i);
+          if(m && m[1]!=='ADB'){ station=m[1]; break; }
+        }
+      }
+
+      for(const n of nearby) ts=ts.concat(times(n));
       hotels.push({station:(station||'').toUpperCase(), times:ts.slice(0,2), raw:line});
     }
   }
@@ -496,15 +532,34 @@ const TURKEY_IATA = new Set([
 function cellText(c){ return (c.lines||[]).join(' '); }
 
 function inferHotelStation(c){
+  // First trust station resolved from Hotel-specific parsing.
   for(const h of (c.hotels||[])){
-    if(h.station) return h.station;
+    if(h.station && h.station!=='ADB') return h.station;
   }
-  const txt=cellText(c);
-  const codes=[...txt.matchAll(/\b([A-Z]{3})\b/g)].map(m=>m[1])
-    .filter(c=>c!=='ADB'&&!['OFF','SIM'].includes(c));
-  return codes[0]||'';
-}
 
+  const lines=c.lines||[];
+
+  // Hotel-adjacent operational location is more reliable than DH/Travel transfer airport.
+  for(const line of lines){
+    let m=line.match(/\bHotel\s+([A-Z]{3})\b/i);
+    if(m && m[1]!=='ADB') return m[1];
+  }
+  for(const line of lines){
+    let m=line.match(/\bTransit\s+([A-Z]{3})\b/i);
+    if(m && m[1]!=='ADB') return m[1];
+  }
+  for(const line of lines){
+    let m=line.match(/\b(?:Report|Release)\s+\d{1,2}:\d{2}\s+([A-Z]{3})\b/i);
+    if(m && m[1]!=='ADB') return m[1];
+  }
+  for(const line of lines){
+    let m=line.match(/\bBOEING-[A-Z]\s+([A-Z]{3})\b/i);
+    if(m && m[1]!=='ADB') return m[1];
+  }
+
+  // Deliberately do NOT fall back to arbitrary DH/Travel airport.
+  return '';
+}
 function findOutboundTime(cells, hotelDay, station){
   // Same day first, then one day before (DXB trip starts the previous evening).
   const candidates=cells.filter(c=>c.day===hotelDay || c.day===hotelDay-1).sort((a,b)=>a.day-b.day);
@@ -697,7 +752,7 @@ function recalc(){
       <td>${hhmm(d.credit)}</td>
       <td>${hhmm(d.night)}</td>
       <td>${d.sectors}</td>
-      <td>${hhmm(d.simExtra||0)}</td>
+      <td>${(d.training && (d.simSessions||0)>0) ? hhmm((d.simSessions||0)*6) : '—'}</td>
     </tr>
   `).join('');
 
@@ -770,7 +825,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V4.3 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM '+hhmm(activeDuties.reduce((s,d)=>s+(d.simExtra||0),0))+' · TRI '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V4.6 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{

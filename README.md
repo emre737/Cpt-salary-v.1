@@ -1,9 +1,9 @@
-# Roster Pay Premium V4.3 — Emblem Only
+# Roster Pay Premium V4.6 — Hotel Station Fix
 
-Bu sürümde:
-- üst kısımda sadece küçük amblem var
-- imza kaldırıldı
-- branding yazıları kaldırıldı
-- hesaplama mantığı V4.2 ile aynı
-
-Sayfada görünmesi gereken sürüm: `V4.3 ACTIVE`
+Düzeltme:
+- DH/Travel yapılan ara istasyon artık Hotel/yatı istasyonu olarak kabul edilmez.
+- Hotel station önceliği: Hotel > Transit > Report/Release > SIM.
+- Temmuz 18 AYT yalnızca transfer noktasıdır; gerçek yatı KYA'dır.
+- 18–19 KYA tek yatı olarak gruplanır.
+- Temmuz hedefi: iç hat 3,5 gün, dış hat 1,5 gün, toplam yatı 180 €.
+- SIM eğitim credit ve duty hesapları değişmedi.
