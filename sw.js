@@ -1,4 +1,4 @@
-const CACHE = 'roster-pay-premium-v5-v3-corrected';
+const CACHE = 'roster-pay-v4-real-fix-20260830';
 const CORE = [
   './manifest.webmanifest',
   './icon-192.png',
