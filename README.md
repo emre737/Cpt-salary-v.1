@@ -1,9 +1,8 @@
-# Roster Pay Premium V4.6 — Hotel Station Fix
+# Roster Pay Premium V4.7 — Clear Thresholds
 
-Düzeltme:
-- DH/Travel yapılan ara istasyon artık Hotel/yatı istasyonu olarak kabul edilmez.
-- Hotel station önceliği: Hotel > Transit > Report/Release > SIM.
-- Temmuz 18 AYT yalnızca transfer noktasıdır; gerçek yatı KYA'dır.
-- 18–19 KYA tek yatı olarak gruplanır.
-- Temmuz hedefi: iç hat 3,5 gün, dış hat 1,5 gün, toplam yatı 180 €.
-- SIM eğitim credit ve duty hesapları değişmedi.
+Değişiklikler:
+- `Threshold takibi` yerine `Ek ödeme durumu`
+- Duty: 100 saat sonrası 52,80 €/saat yüksek tarife açıkça gösterilir
+- TRI: ilk 12 saat baz TRI ücretine dahil, sonrası 35 €/saat ekstra açıkça gösterilir
+- Vergi/sigorta açıklama metni kaldırıldı
+- Hesaplama motoru değişmedi
