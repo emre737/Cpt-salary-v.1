@@ -206,7 +206,7 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V5.0 ACTIVE</div>
+          <div class="pill">V5.2 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -278,7 +278,7 @@
 
   <div class="friendly-field">
     <label for="fx">EUR/TL kuru</label>
-    <input id="fx" type="text" inputmode="decimal" value="63,75" />
+    <input id="fx" type="text" inputmode="decimal" value="63.75" />
   </div>
 </div>
 
@@ -381,7 +381,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.0 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.2 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
@@ -404,7 +404,7 @@ const file = $('pdfFile'), btn = $('parseBtn');
 let pdfjs = null, activeDuties = [], activeCells = [];
 
 const palette = {
-  base:'#6ea8fe', duty:'#74f0d6', night:'#9b8cff', tri:'#f5c56d', sector:'#ff8fb1', lay:'#d1d9ea'
+  base:'#6ea8fe', duty:'#74f0d6', night:'#9b8cff', tri:'#f5c56d', sector:'#ff8fb1', lay:'#d1d9ea', off:'#f59e0b'
 };
 
 file.addEventListener('change', ()=>{
@@ -906,7 +906,7 @@ function calcPay(){
   const night=toH($('nightEdit').value)||0;
   const tri=toH($('triEdit').value)||0;
   const sectors=Math.max(0, Number($('sectorEdit').value)||0);
-  const fx=Math.max(0, Number($('fx').value)||0);
+  const fx=Math.max(0, Number(String($('fx').value).replace(',','.'))||0);
 
   const base=Number($('senioritySelect')?.value)||6490, triBase=378;
   const offToDutyCount=Math.max(0, Math.floor(Number($('offToDutyCount')?.value)||0));
@@ -929,6 +929,9 @@ function calcPay(){
     ['Sektör', sectorPay, palette.sector],
     ['Yatı', lay, palette.lay],
   ];
+  if(offToDutyCount > 0){
+    items.push(['Off to Duty', offToDutyPay, palette.off]);
+  }
 
   $('breakdown').innerHTML = items.map(([k,v,c]) => `
     <div class="earn-card">
@@ -950,7 +953,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V5.0 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V5.2 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
