@@ -151,7 +151,7 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V4.8 ACTIVE</div>
+          <div class="pill">V4.9 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -201,6 +201,15 @@
             </select>
             <div class="muted-note" style="margin-top:7px">Seçime göre baz maaş otomatik güncellenir.</div>
           </div>
+
+          <div class="field" style="margin-bottom:16px">
+            <label for="offToDutyCount">Off to Duty</label>
+            <input id="offToDutyCount" type="number" min="0" step="1" value="0" inputmode="numeric" />
+            <div class="muted-note" style="margin-top:7px">
+              Her Off to Duty için +330 € eklenir.
+            </div>
+          </div>
+
 <input id="pdfFile" type="file" accept="application/pdf,.pdf"></div>
         </div>
         <div class="field">
@@ -309,13 +318,20 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V4.8 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V4.9 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
 const senioritySelect=$('senioritySelect');
 if(senioritySelect){
   senioritySelect.addEventListener('change',()=>calcPay());
+}
+
+
+const offToDutyCountInput=$('offToDutyCount');
+if(offToDutyCountInput){
+  offToDutyCountInput.addEventListener('input',()=>calcPay());
+  offToDutyCountInput.addEventListener('change',()=>calcPay());
 }
 
 </script>
@@ -830,12 +846,14 @@ function calcPay(){
   const fx=Math.max(0, Number($('fx').value)||0);
 
   const base=Number($('senioritySelect')?.value)||6490, triBase=378;
+  const offToDutyCount=Math.max(0, Math.floor(Number($('offToDutyCount')?.value)||0));
+  const offToDutyPay=offToDutyCount*330;
   const dutyPay=Math.min(duty,100)*28.6 + Math.max(0,duty-100)*52.8;
   const nightPay=night*71.3;
   const sectorPay=sectors*17.9;
   const triPay=triBase + Math.max(0,tri-12)*35;
   const lay=(Number($('domFull').value)||0)*30 + (Number($('domHalf').value)||0)*15 + (Number($('intFull').value)||0)*50 + (Number($('intHalf').value)||0)*25;
-  const total=base+dutyPay+nightPay+triPay+sectorPay+lay;
+  const total=base+dutyPay+nightPay+triPay+sectorPay+lay + offToDutyPay;
 
   $('totalTl').textContent=tl(total*fx);
   $('totalEur').textContent=eur(total);
@@ -869,7 +887,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V4.8 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V4.9 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
@@ -893,6 +911,13 @@ if ('caches' in window) {
 const senioritySelect=$('senioritySelect');
 if(senioritySelect){
   senioritySelect.addEventListener('change',()=>calcPay());
+}
+
+
+const offToDutyCountInput=$('offToDutyCount');
+if(offToDutyCountInput){
+  offToDutyCountInput.addEventListener('input',()=>calcPay());
+  offToDutyCountInput.addEventListener('change',()=>calcPay());
 }
 
 </script>
