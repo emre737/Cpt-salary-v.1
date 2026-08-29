@@ -144,14 +144,69 @@
     }
     select option{color:#111}
 
-  </style>
+  
+    .friendly-form{
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      margin:16px 0 18px;
+    }
+    .friendly-field{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .friendly-field label{
+      font-size:15px;
+      font-weight:650;
+      color:var(--text);
+    }
+    .friendly-field input,
+    .friendly-field select{
+      width:100%;
+      min-height:56px;
+      box-sizing:border-box;
+      padding:0 16px;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.07);
+      color:var(--text);
+      font:inherit;
+      font-size:18px;
+      outline:none;
+    }
+    .friendly-field select{
+      appearance:auto;
+    }
+    .field-help{
+      font-size:13px;
+      color:var(--muted);
+      margin-top:-2px;
+    }
+    .file-picker{
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:12px;
+      box-sizing:border-box;
+      background:rgba(255,255,255,.045);
+    }
+    .file-picker input[type="file"]{
+      min-height:auto;
+      padding:0;
+      border:0;
+      background:transparent;
+      font-size:15px;
+    }
+
+</style>
 </head>
 <body>
   <div class="wrap">
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V4.9 ACTIVE</div>
+          <div class="pill">V5.0 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -190,36 +245,44 @@
         <div class="field" style="grid-column:1/-1">
           <label>PDF dosyan</label>
           <div class="filebox">
-          <div class="field" style="margin-bottom:16px">
-            <label for="senioritySelect">Seniority / Baz Maaş</label>
-            <select id="senioritySelect">
-              <option value="5970">0–3 yıl · 5.970 €</option>
-              <option value="6490" selected>4–6 yıl · 6.490 €</option>
-              <option value="6720">7–10 yıl · 6.720 €</option>
-              <option value="7020">11–14 yıl · 7.020 €</option>
-              <option value="7170">15+ yıl · 7.170 €</option>
-            </select>
-            <div class="muted-note" style="margin-top:7px">Seçime göre baz maaş otomatik güncellenir.</div>
-          </div>
+          
+<div class="friendly-form">
+  <div class="friendly-field">
+    <label for="senioritySelect">Seniority / Baz Maaş</label>
+    <select id="senioritySelect">
+      <option value="5970">0–3 yıl · 5.970 €</option>
+      <option value="6490" selected>4–6 yıl · 6.490 €</option>
+      <option value="6720">7–10 yıl · 6.720 €</option>
+      <option value="7020">11–14 yıl · 7.020 €</option>
+      <option value="7170">15+ yıl · 7.170 €</option>
+    </select>
+  </div>
 
-          <div class="field" style="margin-bottom:16px">
-            <label for="offToDutyCount">Off to Duty</label>
-            <input id="offToDutyCount" type="number" min="0" step="1" value="0" inputmode="numeric" />
-            <div class="muted-note" style="margin-top:7px">
-              Her Off to Duty için +330 € eklenir.
-            </div>
-          </div>
+  <div class="friendly-field">
+    <label for="offToDutyCount">Off to Duty</label>
+    <input id="offToDutyCount" type="number" min="0" step="1" value="0" inputmode="numeric" />
+    <div class="field-help">Her duty için +330 €</div>
+  </div>
 
-<input id="pdfFile" type="file" accept="application/pdf,.pdf"></div>
-        </div>
-        <div class="field">
-          <label>Eğitim günleri</label>
-          <input id="trainingDays" type="text" placeholder="Örn: 1,2,6,7,8,23,24">
-        </div>
-        <div class="field">
-          <label>EUR/TL kuru</label>
-          <input id="fx" type="number" step="0.01" value="63.75">
-        </div>
+  <div class="friendly-field">
+    <label for="pdfFile">Roster PDF</label>
+    <div class="file-picker">
+      <input id="pdfFile" type="file" accept="application/pdf,.pdf" />
+    </div>
+  </div>
+
+  <div class="friendly-field">
+    <label for="trainingDays">Eğitim günleri</label>
+    <input id="trainingDays" type="text" placeholder="Örn: 1,2,6,7,8,23,24" />
+  </div>
+
+  <div class="friendly-field">
+    <label for="fx">EUR/TL kuru</label>
+    <input id="fx" type="text" inputmode="decimal" value="63,75" />
+  </div>
+</div>
+
+
       </div>
       <button id="parseBtn" class="btn" disabled style="margin-top:14px">PDF’yi oku</button>
       <div id="status" class="status">PDF seçince okuma aktif olacak.</div>
@@ -318,7 +381,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V4.9 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.0 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
@@ -887,7 +950,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V4.9 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V5.0 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{

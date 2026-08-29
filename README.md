@@ -1,8 +1,12 @@
-# Roster Pay Premium V4.9 — Off to Duty
+# Roster Pay Premium V5.0 — Friendly Form
 
-Yeni özellik:
-- İlk bölümde `Off to Duty` adedi alanı eklendi.
-- Her Off to Duty için maaşa bağımsız olarak +330 € eklenir.
-- Örnek: 2 Off to Duty = +660 €.
-- Seniority baz maaş seçimi korunmuştur.
-- Diğer V4.8 hesaplama kuralları değiştirilmemiştir.
+İlk bölüm mobilde daha kullanıcı dostu olacak şekilde sadeleştirildi.
+
+- Seniority / Baz Maaş
+- Off to Duty
+- Roster PDF
+- Eğitim günleri
+- EUR/TL kuru
+
+Alanlar artık iç içe kutular yerine alt alta ve tam genişlikte gösterilir.
+Hesaplama kuralları değiştirilmemiştir.
