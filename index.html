@@ -234,7 +234,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · Safari Fix 1</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · Safari Fix 2 · Training Parser</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -281,24 +281,52 @@ function parseCell(day, lines){
   const report=(text.match(/Report\s+(\d{1,2}:\d{2})/i)||[])[1]||'';
   const release=(text.match(/Release\s+(\d{1,2}:\d{2})/i)||[])[1]||'';
   const standby=/\bSB(?:1|2|-PF)\b/i.test(text);
+
   let simExtra=0, sectors=0, plannedFlight=0;
   const hotels=[];
-  for(const line of lines){
+
+  function timesFromLine(s){
+    return [...String(s||'').matchAll(/(\d{1,2}:\d{2})/g)].map(m=>m[1]);
+  }
+
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+
+    // SIM instruction often wraps:
+    // BOEING-D IST 19:00
+    // ~ 23:00 IST
     if(/BOEING-[A-Z]/i.test(line)){
-      const ts=[...line.matchAll(/(\d{1,2}:\d{2})/g)].map(m=>m[1]);
-      if(ts.length>=2) simExtra += dur(ts[0], ts.at(-1));
+      let ts=timesFromLine(line);
+      for(let j=i+1;j<Math.min(lines.length,i+3) && ts.length<2;j++){
+        if(/^(?:~|BOEING|Transit|Hotel|DH|Release|Report|XQ)/i.test(lines[j]) || timesFromLine(lines[j]).length){
+          ts=ts.concat(timesFromLine(lines[j]));
+        }
+      }
+      if(ts.length>=2) simExtra += dur(ts[0],ts[1]);
     }
-    if(/^XQ\d+/i.test(line)){
+
+    // Each XQ flight is a sector. Its second time can be on a wrapped "~ HH:MM" line.
+    if(/\bXQ\d+\b/i.test(line) && !/^\s*~/.test(line)){
       sectors++;
-      const ts=[...line.matchAll(/(\d{1,2}:\d{2})/g)].map(m=>m[1]);
-      if(ts.length>=2) plannedFlight += dur(ts[0], ts.at(-1));
+      let ts=timesFromLine(line);
+
+      if(ts.length<2 && i+1<lines.length && /^\s*~/.test(lines[i+1])){
+        ts=ts.concat(timesFromLine(lines[i+1]));
+      }
+      // Some PDFs can put the continuation immediately before the XQ line after text sorting.
+      if(ts.length<2 && i>0 && /^\s*~/.test(lines[i-1])){
+        ts=timesFromLine(lines[i-1]).concat(ts);
+      }
+
+      if(ts.length>=2) plannedFlight += dur(ts[0],ts[1]);
     }
+
     const hm=line.match(/Hotel\s+([A-Z]{3})/i);
     if(hm) hotels.push(hm[1].toUpperCase());
   }
+
   return {day, lines, report, release, standby, simExtra, sectors, plannedFlight, hotels};
 }
-
 function pair(cells){
   const out=[]; let open=null;
   for(const c of cells){
@@ -327,23 +355,82 @@ async function extractPdf(f){
     if(!pdfjs) throw new Error('PDF.js yüklenemedi. İnternet bağlantısını kontrol et.');
     pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
+
   const data=new Uint8Array(await f.arrayBuffer());
   const doc=await pdfjs.getDocument({data}).promise;
   const cells=[];
-  for(let p=1; p<=doc.numPages; p++){
+  let allText='';
+
+  function cluster(vals, tol){
+    const groups=[];
+    for(const v of vals.sort((a,b)=>a-b)){
+      let g=groups.find(x=>Math.abs(x.center-v)<tol);
+      if(!g){ g={vals:[v],center:v}; groups.push(g); }
+      else { g.vals.push(v); g.center=g.vals.reduce((a,b)=>a+b,0)/g.vals.length; }
+    }
+    return groups.sort((a,b)=>a.center-b.center).map(g=>g.center);
+  }
+
+  for(let p=1;p<=doc.numPages;p++){
     const page=await doc.getPage(p), tc=await page.getTextContent();
-    const items=tc.items.filter(i=>i.str&&i.str.trim()).map(i=>({str:i.str.trim(),x:i.transform[4],y:i.transform[5],h:Math.abs(i.transform[3])}));
-    const dayMarks=items.filter(i=>/^([1-9]|[12]\d|3[01])$/.test(i.str)&&i.h>10).map(i=>({...i,day:Number(i.str)}));
-    for(const h of dayMarks){
-      const near=items.filter(it=>Math.abs(it.x-h.x)<34 && it.y<h.y && h.y-it.y<115);
-      cells.push({page:p, day:h.day, x:h.x, y:h.y, lines:groupLines(near)});
+    const items=tc.items
+      .filter(i=>i.str&&i.str.trim())
+      .map(i=>({str:i.str.trim(),x:i.transform[4],y:i.transform[5],h:Math.abs(i.transform[3])}));
+
+    allText += ' ' + items.map(i=>i.str).join(' ');
+
+    const headers=items
+      .filter(i=>/^([1-9]|[12]\d|3[01])$/.test(i.str)&&i.h>10)
+      .map(i=>({...i,day:Number(i.str)}));
+
+    if(!headers.length) continue;
+
+    // Calendar day headers provide the seven left edges and row top edges.
+    const xs=cluster(headers.map(h=>h.x),18);
+    const ys=cluster(headers.map(h=>h.y),5).sort((a,b)=>b-a);
+
+    for(const h of headers){
+      const col=xs.reduce((best,x,idx)=>Math.abs(x-h.x)<Math.abs(xs[best]-h.x)?idx:best,0);
+      const row=ys.reduce((best,y,idx)=>Math.abs(y-h.y)<Math.abs(ys[best]-h.y)?idx:best,0);
+
+      const left=xs[col]-7;
+      const right=col<xs.length-1 ? xs[col+1]-7 : Number.POSITIVE_INFINITY;
+      const top=ys[row]+5;
+      const bottom=row<ys.length-1 ? ys[row+1]+5 : Number.NEGATIVE_INFINITY;
+
+      const cellItems=items.filter(it =>
+        it !== h &&
+        it.x >= left && it.x < right &&
+        it.y <= top && it.y > bottom
+      );
+
+      cells.push({page:p,row,col,day:h.day,lines:groupLines(cellItems)});
     }
   }
-  cells.sort((a,b)=>a.page-b.page||b.y-a.y||a.x-b.x);
-  let start=cells.findIndex(c=>c.day===1);
-  return cells.slice(Math.max(0,start));
-}
 
+  cells.sort((a,b)=>a.page-b.page||a.row-b.row||a.col-b.col);
+
+  // Determine roster month and take exactly that calendar month's day cells.
+  const monthNames={
+    january:0,february:1,march:2,april:3,may:4,june:5,
+    july:6,august:7,september:8,october:9,november:10,december:11
+  };
+  let year=null, month=null;
+  const lower=allText.toLowerCase();
+  for(const [name,idx] of Object.entries(monthNames)){
+    const m=lower.match(new RegExp(name+'\\s+(20\\d{2})'));
+    if(m){ month=idx; year=Number(m[1]); break; }
+  }
+
+  let first=cells.findIndex(c=>c.day===1);
+  if(first<0) first=0;
+
+  if(year!=null && month!=null){
+    const daysInMonth=new Date(year,month+1,0).getDate();
+    return cells.slice(first, first+daysInMonth);
+  }
+  return cells.slice(first);
+}
 function renderType(d){
   let tag='Duty', cls='';
   if(d.standby){ tag='STBY'; cls='stby'; }
@@ -465,7 +552,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='PDF okundu. Sonuçlar hazır.';
+    $('status').textContent='PDF okundu. Sonuçlar hazır. Görev: '+activeDuties.length+' · SIM extra: '+hhmm(activeDuties.reduce((s,d)=>s+(d.simExtra||0),0))+' · Eğitim credit: '+$('triEdit').value;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{

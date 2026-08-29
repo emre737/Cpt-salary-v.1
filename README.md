@@ -1,19 +1,17 @@
-# Roster Pay Premium — Safari Fix
+# Roster Pay Premium — Training Parser Fix v2
 
-Bu sürüm iPhone Safari'deki:
-`Setting up fake worker failed: Importing a module script failed`
-hatasını düzeltmek için PDF.js'i klasik Safari uyumlu sürümle yükler.
+Bu sürüm şu iki hatayı düzeltir:
 
-## Güncelleme
-Mevcut GitHub repository'nizde özellikle şu iki dosyanın üzerine yazın:
-- `index.html`
-- `sw.js`
+1. BOEING-C / BOEING-D SIM instruction satırları PDF'de iki satıra bölündüğünde SIM süresinin okunmaması.
+2. XQ sektöründe kalkış ve varış saatleri iki satıra bölündüğünde TRI eğitim süresinin 00:00 çıkması.
 
-İsterseniz ZIP içindeki tüm dosyaları da yeniden yükleyebilirsiniz.
+Ayrıca PDF takvim hücreleri artık sütun/satır sınırlarına göre okunur.
 
-Commit sonrası GitHub Pages deploy yeşil tik olunca Safari'de site adresinin sonuna:
-`?v=2`
-ekleyerek bir kez açın. Örn:
-`https://kullanici.github.io/repo-adi/?v=2`
+Temmuz 2026 testinde beklenen yaklaşık parser sonuçları:
+- Duty: ~145:18 (bordro gerçekleşeni 145.37 decimal ≈ 145:22)
+- Night: ~20:03 (bordro gerçekleşeni 20.30 decimal ≈ 20:18)
+- Ek sektör: 2
+- TRI: artık 00:00 olmamalı; roster planlı sürelerinden hesaplanır.
 
-Bu, önceki Service Worker önbelleğini atlayıp yeni index.html'i getirir.
+Not: TRI uçuş ödemesinde şirket planlanan/gerçekleşen flight time'dan yüksek olanı kullanıyorsa,
+roster PDF tek başına gerçekleşen flight time'ı içermediğinde nihai TRI tutarı manuel düzeltme gerektirebilir.

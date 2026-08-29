@@ -1,4 +1,4 @@
-const CACHE = 'roster-pay-premium-v2-safari';
+const CACHE = 'roster-pay-premium-v3-training-parser';
 const CORE = [
   './manifest.webmanifest',
   './icon-192.png',
