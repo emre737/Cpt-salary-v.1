@@ -136,6 +136,14 @@
     }
     .hero-emblem svg{width:68px;height:68px;display:block}
 
+  
+    select{
+      width:100%; padding:13px 14px; border-radius:14px;
+      border:1px solid var(--line); background:rgba(255,255,255,.07);
+      color:var(--text); font:inherit; outline:none;
+    }
+    select option{color:#111}
+
   </style>
 </head>
 <body>
@@ -143,7 +151,7 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V4.7 ACTIVE</div>
+          <div class="pill">V4.8 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -181,7 +189,19 @@
       <div class="grid2">
         <div class="field" style="grid-column:1/-1">
           <label>PDF dosyan</label>
-          <div class="filebox"><input id="pdfFile" type="file" accept="application/pdf,.pdf"></div>
+          <div class="filebox">
+          <div class="field" style="margin-bottom:16px">
+            <label for="senioritySelect">Seniority / Baz Maaş</label>
+            <select id="senioritySelect">
+              <option value="5970">0–3 yıl · 5.970 €</option>
+              <option value="6490" selected>4–6 yıl · 6.490 €</option>
+              <option value="6720">7–10 yıl · 6.720 €</option>
+              <option value="7020">11–14 yıl · 7.020 €</option>
+              <option value="7170">15+ yıl · 7.170 €</option>
+            </select>
+            <div class="muted-note" style="margin-top:7px">Seçime göre baz maaş otomatik güncellenir.</div>
+          </div>
+<input id="pdfFile" type="file" accept="application/pdf,.pdf"></div>
         </div>
         <div class="field">
           <label>Eğitim günleri</label>
@@ -289,10 +309,16 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V4.7 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V4.8 ACTIVE</div>
   </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
+const senioritySelect=$('senioritySelect');
+if(senioritySelect){
+  senioritySelect.addEventListener('change',()=>calcPay());
+}
+
+</script>
 <script>
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
@@ -803,7 +829,7 @@ function calcPay(){
   const sectors=Math.max(0, Number($('sectorEdit').value)||0);
   const fx=Math.max(0, Number($('fx').value)||0);
 
-  const base=6490, triBase=378;
+  const base=Number($('senioritySelect')?.value)||6490, triBase=378;
   const dutyPay=Math.min(duty,100)*28.6 + Math.max(0,duty-100)*52.8;
   const nightPay=night*71.3;
   const sectorPay=sectors*17.9;
@@ -843,7 +869,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V4.7 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V4.8 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
@@ -861,6 +887,12 @@ if ('serviceWorker' in navigator) {
 }
 if ('caches' in window) {
   caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).catch(()=>{});
+}
+
+
+const senioritySelect=$('senioritySelect');
+if(senioritySelect){
+  senioritySelect.addEventListener('change',()=>calcPay());
 }
 
 </script>

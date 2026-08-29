@@ -1,8 +1,13 @@
-# Roster Pay Premium V4.7 — Clear Thresholds
+# Roster Pay Premium V4.8 — Seniority
 
-Değişiklikler:
-- `Threshold takibi` yerine `Ek ödeme durumu`
-- Duty: 100 saat sonrası 52,80 €/saat yüksek tarife açıkça gösterilir
-- TRI: ilk 12 saat baz TRI ücretine dahil, sonrası 35 €/saat ekstra açıkça gösterilir
-- Vergi/sigorta açıklama metni kaldırıldı
-- Hesaplama motoru değişmedi
+PDF yükleme bölümüne Seniority / Baz Maaş seçimi eklendi.
+
+- 0–3 yıl: 5.970 €
+- 4–6 yıl: 6.490 €
+- 7–10 yıl: 6.720 €
+- 11–14 yıl: 7.020 €
+- 15+ yıl: 7.170 €
+
+Varsayılan: 4–6 yıl / 6.490 €.
+Seçim değişince toplam maaş otomatik yeniden hesaplanır.
+Diğer V4.7 hesaplama kuralları korunmuştur.
