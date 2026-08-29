@@ -1,4 +1,4 @@
-const CACHE = 'roster-pay-premium-v3-training-parser';
+const CACHE = 'roster-pay-premium-v4-hotel-simtri';
 const CORE = [
   './manifest.webmanifest',
   './icon-192.png',
