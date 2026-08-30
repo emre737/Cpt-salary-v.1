@@ -231,7 +231,7 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V5.7 ACTIVE</div>
+          <div class="pill">V5.8 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -417,7 +417,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.7 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.8 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
@@ -593,30 +593,20 @@ function parseCell(day, lines){
 
 function pair(cells){
   const out=[]; let open=null;
-
   for(const c of cells){
-    // Overnight carry-over:
-    // a day cell may contain previous night's Release first, then a new Report later.
-    const reportH=toH(c.report);
-    const releaseH=toH(c.release);
-    const releaseBelongsToPrevious = !!(
-      open && c.release && c.report &&
-      reportH!=null && releaseH!=null &&
-      releaseH < reportH
-    );
+    const hadOpen=!!open;
 
-    if(releaseBelongsToPrevious){
+    // Strict roster sequence: an already-open Report is closed by the next Release,
+    // even if that Release is in the next calendar day.
+    if(open && c.release){
       open.release=c.release;
       out.push(open);
       open=null;
     }
 
+    // A Report in this cell starts a new duty AFTER any carry-over Release is handled.
     if(c.report){
-      if(open){
-        out.push(open);
-        open=null;
-      }
-
+      if(open){ out.push(open); open=null; }
       open={
         day:c.day, report:c.report, release:'', standby:c.standby,
         standbyEnd:c.standbyEnd||'', hasDH:!!c.hasDH,
@@ -624,8 +614,8 @@ function pair(cells){
         sectors:c.sectors, plannedFlight:c.plannedFlight,
         lines:[...c.lines], codes:[...(c.codes||[])]
       };
-
-      if(c.release && !releaseBelongsToPrevious){
+      // If there was no previous open duty, this cell's Release belongs to this Report.
+      if(c.release && !hadOpen){
         open.release=c.release;
         out.push(open);
         open=null;
@@ -640,46 +630,26 @@ function pair(cells){
       if(c.standbyEnd) open.standbyEnd=c.standbyEnd;
       open.lines.push(...c.lines);
       open.codes.push(...(c.codes||[]));
-
-      if(c.release){
-        open.release=c.release;
-        out.push(open);
-        open=null;
-      }
     }
   }
-
   if(open) out.push(open);
 
+  // DH + operating flight in one duty: first Report -> final Release.
   const merged=[];
   for(const d of out){
     const prev=merged[merged.length-1];
-    if(prev && prev.day===d.day){
-      const combinedHasDH=!!prev.hasDH || !!d.hasDH;
-      const combinedSectors=(prev.sectors||0)+(d.sectors||0);
-
-      if(combinedHasDH && combinedSectors>0){
-        prev.release=d.release || prev.release;
-        prev.hasDH=combinedHasDH;
-        prev.sectors=combinedSectors;
-        prev.plannedFlight=(prev.plannedFlight||0)+(d.plannedFlight||0);
-        prev.simExtra=(prev.simExtra||0)+(d.simExtra||0);
-        prev.simSessions=(prev.simSessions||0)+(d.simSessions||0);
-        prev.standby=prev.standby || d.standby;
-        if(!prev.standbyEnd && d.standbyEnd) prev.standbyEnd=d.standbyEnd;
-        prev.lines.push(...(d.lines||[]));
-        prev.codes.push(...(d.codes||[]));
-        prev.dhFlightComposite=true;
-        continue;
-      }
-    }
-    merged.push(d);
+    if(prev && prev.day===d.day && ((prev.hasDH||d.hasDH) && ((prev.sectors||0)+(d.sectors||0)>0))){
+      prev.release=d.release||prev.release;
+      prev.hasDH=prev.hasDH||d.hasDH;
+      prev.sectors=(prev.sectors||0)+(d.sectors||0);
+      prev.plannedFlight=(prev.plannedFlight||0)+(d.plannedFlight||0);
+      prev.simSessions=(prev.simSessions||0)+(d.simSessions||0);
+      prev.lines.push(...(d.lines||[]));
+      prev.codes.push(...(d.codes||[]));
+      prev.dhFlightComposite=true;
+    } else merged.push(d);
   }
-
-  merged.forEach(d=>{
-    if(d.hasDH && (d.sectors||0)>0) d.dhFlightComposite=true;
-  });
-
+  merged.forEach(d=>{if(d.hasDH&&(d.sectors||0)>0)d.dhFlightComposite=true;});
   return merged;
 }
 
@@ -961,7 +931,7 @@ function recalc(){
     const hasActiveDuty=hasFlightSectors || !!d.hasDH || (d.simSessions||0)>0;
     const postFlightDuty=hasActiveDuty ? 0.5 : 0;
 
-    // DUTY RULES V5.7 (CAE-aligned)
+    // DUTY RULES V5.8 (CAE-aligned)
     // Flight / DH / SIM: FIRST Report -> FINAL Release + 00:30 post-flight.
     // DH + operating flight is one continuous duty whether DH is before or after the flight.
     // The +00:30 is added ONCE at the end of that full duty.
@@ -1129,7 +1099,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V5.7 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V5.8 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{

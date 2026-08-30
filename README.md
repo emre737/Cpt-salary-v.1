@@ -1,9 +1,4 @@
-# Roster Pay Premium V5.7 — Overnight Standby Fix
-
-- 18 Sep Report 17:00, SB4 -> 19 Sep Release 00:30:
-  7:30 standby, %25 = 1:53.
-- 19 Sep Report 21:00, SB5 -> 20 Sep Release 04:00:
-  7:00 standby, %25 = 1:45.
-- Parser artık bir gün hücresindeki erken saatli Release'i önceki gecenin göreviyle,
-  daha geç saatli Report'u ise yeni görevle eşleştirir.
-- V5.6 kuralları korunmuştur.
+# V5.8
+Duty pairing is sequential Report -> next Release across calendar days.
+Example: 31 Jul Report 15:35 -> 1 Aug Release 01:57; then 1 Aug Report 19:40 -> 2 Aug Release 01:15.
+DH/flight, standby, SIM, post-flight and Instructor rules are retained.
