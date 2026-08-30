@@ -231,7 +231,7 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V5.4 ACTIVE</div>
+          <div class="pill">V5.6 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -417,7 +417,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.4 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.6 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
@@ -502,13 +502,23 @@ function groupLines(items){
 function parseCell(day, lines){
   const text = lines.join(' | ');
   const report=(text.match(/Report\s+(\d{1,2}:\d{2})/i)||[])[1]||'';
-  const release=(text.match(/Release\s+(\d{1,2}:\d{2})/i)||[])[1]||'';
-  const standby=/\bSB(?:1|2|-PF)\b/i.test(text);
+  const releases=[...text.matchAll(/Release\s+(\d{1,2}:\d{2})/gi)].map(m=>m[1]);
+  const release=releases.length ? releases[releases.length-1] : '';
+  const standby=/\bSB(?:1|2|3|4|5|-PF)\b/i.test(text);
+  const hasDH=/\bDH\b/i.test(text);
 
   let simExtra=0, simSessions=0, sectors=0, plannedFlight=0;
   const hotels=[];
 
   const times=s=>[...String(s||'').matchAll(/(\d{1,2}:\d{2})/g)].map(m=>m[1]);
+
+  let standbyEnd='';
+  for(const line of lines){
+    if(/\bSB(?:1|2|3|4|5|-PF)\b/i.test(line)){
+      const st=times(line);
+      if(st.length>=2) standbyEnd=st[st.length-1];
+    }
+  }
 
   for(let i=0;i<lines.length;i++){
     const line=lines[i];
@@ -578,7 +588,7 @@ function parseCell(day, lines){
   const codes=[...text.matchAll(/\b([A-Z]{3})\b/g)].map(m=>m[1])
     .filter(c=>!['OFF','SIM'].includes(c));
 
-  return {day, lines, text, report, release, standby, simExtra, simSessions, sectors, plannedFlight, hotels, codes};
+  return {day, lines, text, report, release, releases, standby, standbyEnd, hasDH, simExtra, simSessions, sectors, plannedFlight, hotels, codes};
 }
 
 function pair(cells){
@@ -588,6 +598,7 @@ function pair(cells){
       if(open) out.push(open);
       open={
         day:c.day, report:c.report, release:'', standby:c.standby,
+        standbyEnd:c.standbyEnd||'', hasDH:!!c.hasDH,
         simExtra:c.simExtra, simSessions:c.simSessions||0,
         sectors:c.sectors, plannedFlight:c.plannedFlight,
         lines:[...c.lines], codes:[...(c.codes||[])]
@@ -597,6 +608,8 @@ function pair(cells){
       open.simSessions += (c.simSessions||0);
       open.sectors += c.sectors;
       open.plannedFlight += c.plannedFlight;
+      open.hasDH = open.hasDH || !!c.hasDH;
+      if(c.standbyEnd) open.standbyEnd=c.standbyEnd;
       open.lines.push(...c.lines);
       open.codes.push(...(c.codes||[]));
     }
@@ -606,7 +619,42 @@ function pair(cells){
     }
   }
   if(open) out.push(open);
-  return out;
+
+  // CAE rule: if DH and operating flight belong to the same calendar-day duty chain,
+  // use the day's FIRST Report and FINAL Release as one continuous duty.
+  // This applies whether DH is before or after the operating sector.
+  const merged=[];
+  for(const d of out){
+    const prev=merged[merged.length-1];
+    if(prev && prev.day===d.day){
+      const combinedHasDH=!!prev.hasDH || !!d.hasDH;
+      const combinedSectors=(prev.sectors||0)+(d.sectors||0);
+
+      if(combinedHasDH && combinedSectors>0){
+        // Keep the first Report from the first segment and final Release from the last segment.
+        prev.release=d.release || prev.release;
+        prev.hasDH=combinedHasDH;
+        prev.sectors=combinedSectors;
+        prev.plannedFlight=(prev.plannedFlight||0)+(d.plannedFlight||0);
+        prev.simExtra=(prev.simExtra||0)+(d.simExtra||0);
+        prev.simSessions=(prev.simSessions||0)+(d.simSessions||0);
+        prev.standby=prev.standby || d.standby;
+        if(!prev.standbyEnd && d.standbyEnd) prev.standbyEnd=d.standbyEnd;
+        prev.lines.push(...(d.lines||[]));
+        prev.codes.push(...(d.codes||[]));
+        prev.dhFlightComposite=true;
+        continue;
+      }
+    }
+    merged.push(d);
+  }
+
+  // Mark single parsed duties that already contain both DH and operating flight.
+  merged.forEach(d=>{
+    if(d.hasDH && (d.sectors||0)>0) d.dhFlightComposite=true;
+  });
+
+  return merged;
 }
 
 async function extractPdf(f){
@@ -884,14 +932,34 @@ function recalc(){
   activeDuties.forEach(d=>{
     const base=dur(d.report,d.release);
     const hasFlightSectors=(d.sectors||0)>0;
-    const postFlightDuty=hasFlightSectors ? 0.5 : 0;
+    const hasActiveDuty=hasFlightSectors || !!d.hasDH || (d.simSessions||0)>0;
+    const postFlightDuty=hasActiveDuty ? 0.5 : 0;
 
-    // DUTY RULES V5.4
-    // 1) SIM day: duty is ONLY Report -> Release. No automatic SIM extra duty.
-    // 2) Flight-sector duty: add 00:30 post-flight duty once at the end of the duty.
-    // 3) Standby remains 25% for now; activated-standby logic will be handled separately.
-    d.credit=d.standby ? base*.25 : base + postFlightDuty;
-    d.night=d.standby ? 0 : overlapNight(d.report,d.release);
+    // DUTY RULES V5.6 (CAE-aligned)
+    // Flight / DH / SIM: FIRST Report -> FINAL Release + 00:30 post-flight.
+    // DH + operating flight is one continuous duty whether DH is before or after the flight.
+    // The +00:30 is added ONCE at the end of that full duty.
+    // Standby-only: %25.
+    // Activated standby: standby section %25 + active section %100 + 00:30 post-flight.
+    if(d.standby && hasActiveDuty && d.standbyEnd){
+      const standbyPart=dur(d.report,d.standbyEnd)*0.25;
+      const activePart=dur(d.standbyEnd,d.release);
+      d.credit=standbyPart + activePart + 0.5;
+      d.activatedStandby=true;
+      d.standbyCredit=standbyPart;
+      d.activeCredit=activePart;
+    } else if(d.standby){
+      d.credit=base*0.25;
+      d.activatedStandby=false;
+      d.standbyCredit=d.credit;
+      d.activeCredit=0;
+    } else {
+      d.credit=base + postFlightDuty;
+      d.activatedStandby=false;
+      d.standbyCredit=0;
+      d.activeCredit=base;
+    }
+    d.night=d.standby && !d.activatedStandby ? 0 : overlapNight(d.report,d.release);
     d.postFlightDuty=postFlightDuty;
     d.extra=Math.max(0,d.sectors-2);
     d.training=training.has(d.day);
@@ -944,7 +1012,13 @@ function recalc(){
       <td>${d.report||'—'}</td>
       <td>${d.release||'—'}</td>
       <td>${renderType(d)}</td>
-      <td>${hhmm(d.credit)}${d.postFlightDuty ? ' <span class="muted-note">(+00:30 post-flight)</span>' : ''}</td>
+      <td>${hhmm(d.credit)}${
+        d.activatedStandby
+          ? ` <span class="muted-note">(SB %25 + aktif duty +00:30)</span>`
+          : (d.dhFlightComposite
+              ? ' <span class="muted-note">(ilk Report → son Release +00:30)</span>'
+              : (d.postFlightDuty ? ' <span class="muted-note">(+00:30 post-flight)</span>' : ''))
+      }</td>
       <td>${hhmm(d.night)}</td>
       <td>${d.sectors}</td>
       <td class="tri-col">${(d.training && (d.simSessions||0)>0) ? hhmm((d.simSessions||0)*6) : '—'}</td>
@@ -1029,7 +1103,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V5.4 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V5.6 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{

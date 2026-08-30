@@ -1,13 +1,11 @@
-# Roster Pay Premium V5.4 — Instructor Toggle
+# Roster Pay Premium V5.6 — DH + Flight Full-Span Duty
 
-Yeni özellik:
-- İlk bölümde `Instructor` Yes / No seçeneği eklendi.
-- Yes:
-  - TRI baz ücreti 378 € hesaplanır.
-  - Eğitim günleri TRI credit hesabına dahil edilir.
-  - TRI KPI, eşik bölümü, manuel alan, tablo sütunu ve kazanç dağılımı görünür.
-- No:
-  - TRI baz ücreti 0 € olur.
-  - TRI eğitim crediti ve TRI ödeme hesabı tamamen devre dışı kalır.
-  - TRI ile ilgili tüm görünür alanlar gizlenir.
-- Diğer V5.3 duty kuralları korunmuştur.
+Yeni CAE duty kuralı:
+- Aynı duty içinde DH + operating flight varsa, DH ister uçuşun önünde ister sonunda olsun:
+  - günün/duty zincirinin ilk Report saati alınır,
+  - en son Release saati alınır,
+  - aradaki sürenin tamamı %100 duty sayılır,
+  - yalnızca duty sonunda bir kez +00:30 post-flight eklenir.
+- Aynı gün parser tarafından iki parçaya bölünmüş DH + flight zincirleri otomatik birleştirilir.
+- Activated standby kuralı korunur: standby kısmı %25 + aktif duty %100 +00:30.
+- SIM, Instructor Yes/No, TRI ve diğer V5.5 kuralları korunmuştur.
