@@ -138,10 +138,11 @@ function pair(cells){
   let open=null;
   let pendingActivationRelease='';
 
-  const startDuty=(day,time)=>({
+  const startDuty=(day,time,carryIn=false)=>({
     day,
     report:time,
     release:'',
+    carryIn,
     standby:false,
     standbyEnd:'',
     activationStart:'',
@@ -212,9 +213,11 @@ function pair(cells){
   // opens a completely separate standby duty.
   for(const c of cells){
     const parsed=(c.events ? c : parseCell(c.day,c.lines));
+    let seenReportInCell=false;
 
     for(const e of parsed.events){
       if(e.type==='report'){
+        seenReportInCell=true;
         // If standby is activated exactly when the standby window ends, keep the
         // original duty open. This Report marks the start of 100% active duty.
         if(open && open.standby && open.standbyEnd && e.time===open.standbyEnd){
@@ -234,7 +237,26 @@ function pair(cells){
         continue;
       }
 
+      // If the selected month starts with the continuation of a duty that began
+      // in the previous month, there is no Report in this PDF month. Build a
+      // synthetic 00:00 carry-in duty and attach the leading XQ/DH/SB/SIM events
+      // to it until the first Release.
+      if(!open && parsed.day===1 && !seenReportInCell &&
+         ['sector','dh','standby','sim'].includes(e.type)){
+        open=startDuty(parsed.day,'00:00',true);
+        open.codes.push(...(parsed.codes||[]));
+        absorb(open,e);
+        continue;
+      }
+
       if(e.type==='release'){
+        // A first-day Release with no visible activity can still be the tail of
+        // the previous month's duty. Count 00:00 -> Release in this month.
+        if(!open && parsed.day===1 && !seenReportInCell){
+          open=startDuty(parsed.day,'00:00',true);
+          open.codes.push(...(parsed.codes||[]));
+        }
+
         // The Release at the exact activation time is only the standby boundary.
         // It must NOT close the duty. The later final Release after DH/flight closes it.
         if(open && pendingActivationRelease && e.time===pendingActivationRelease){
@@ -310,7 +332,12 @@ async function extractPdf(f){
         .filter(h=>Math.abs(h.y-ys[row])<5)
         .sort((a,b)=>a.x-b.x);
 
-      rowHeaders.forEach((h,col)=>{
+      rowHeaders.forEach((h)=>{
+        // Adjacent-month labels such as "Jul. 31" can arrive from PDF.js as ONE
+        // text item and therefore disappear from numeric rowHeaders. Never use
+        // rowHeaders array index as the weekday column. Resolve the real column
+        // directly from the numeric date header's X position.
+        const col=Math.max(0,Math.min(6,Math.floor((h.x-calendarLeft)/colWidth)));
         const left=calendarLeft+col*colWidth;
         const right=calendarLeft+(col+1)*colWidth;
         const top=ys[row]+5;
@@ -352,7 +379,8 @@ async function extractPdf(f){
 }
 function renderType(d){
   let tag='Duty', cls='';
-  if(d.activatedStandby){ tag='STBY → Duty'; cls='stby'; }
+  if(d.carryIn){ tag='Önceki aydan'; cls=''; }
+  else if(d.activatedStandby){ tag='STBY → Duty'; cls='stby'; }
   else if(d.standby){ tag='STBY'; cls='stby'; }
   else if((d.simSessions||0)>0){ tag='SIM'; cls='sim'; }
   if(d.training) return `<span class="tag train">${tag} · Eğitim</span>`;
@@ -538,15 +566,20 @@ function applyLayovers(cells){
 function recalc(){
   const training=new Set($('trainingDays').value.split(',').map(x=>Number(x.trim())).filter(Boolean));
   const instructorMode=($('instructorMode')?.value||'yes')==='yes';
+  const lastRosterDay=activeCells.length ? Math.max(...activeCells.map(c=>c.day)) : 31;
   let duty=0, night=0, sectors=0, tri=0;
 
   activeDuties.forEach(d=>{
-    const base=dur(d.report,d.release);
+    const monthEndCutoff = !d.release && d.day===lastRosterDay;
+    const effectiveRelease = monthEndCutoff ? '24:00' : d.release;
+    const base=dur(d.report,effectiveRelease);
     const hasFlightSectors=(d.sectors||0)>0;
     const hasActiveDuty=hasFlightSectors || !!d.hasDH || (d.simSessions||0)>0;
-    const postFlightDuty=hasActiveDuty ? 0.5 : 0;
+    const postFlightDuty=(hasActiveDuty && !monthEndCutoff) ? 0.5 : 0;
+    d.monthEndCutoff=monthEndCutoff;
+    d.effectiveRelease=effectiveRelease;
 
-    // DUTY RULES V6.4 (event-based / CAE-aligned)
+    // DUTY RULES V6.7 (event-based / CAE-aligned)
     // Flight / DH / SIM: FIRST Report -> FINAL Release + 00:30 post-flight.
     // DH + operating flight is one continuous duty whether DH is before or after the flight.
     // The +00:30 is added ONCE at the end of that full duty.
@@ -555,8 +588,8 @@ function recalc(){
     if(d.standby && hasActiveDuty && (d.activationStart||d.standbyEnd)){
       const activation=d.activationStart||d.standbyEnd;
       const standbyPart=dur(d.report,activation)*0.25;
-      const activePart=dur(activation,d.release);
-      d.credit=standbyPart + activePart + 0.5;
+      const activePart=dur(activation,effectiveRelease);
+      d.credit=standbyPart + activePart + postFlightDuty;
       d.activatedStandby=true;
       d.standbyCredit=standbyPart;
       d.activeCredit=activePart;
@@ -575,7 +608,7 @@ function recalc(){
     // Use the local value immediately so the FIRST calculation after PDF load
     // already includes post-flight Night; do not depend on a previous recalc().
     d.postFlightDuty=postFlightDuty;
-    const nightEnd = postFlightDuty ? addHoursToHHMM(d.release,postFlightDuty) : d.release;
+    const nightEnd = postFlightDuty ? addHoursToHHMM(effectiveRelease,postFlightDuty) : effectiveRelease;
     d.night = d.activatedStandby
       ? overlapNight((d.activationStart||d.standbyEnd),nightEnd)
       : (d.standby ? 0 : overlapNight(d.report,nightEnd));
@@ -627,15 +660,19 @@ function recalc(){
   $('rows').innerHTML=activeDuties.map(d=>`
     <tr>
       <td>${d.day}</td>
-      <td>${d.report||'—'}</td>
-      <td>${d.release||'—'}</td>
+      <td>${d.carryIn ? '00:00*' : (d.report||'—')}</td>
+      <td>${d.monthEndCutoff ? '24:00*' : (d.release||'—')}</td>
       <td>${renderType(d)}</td>
       <td>${hhmm(d.credit)}${
         d.activatedStandby
           ? ` <span class="muted-note">(SB %25 + aktif duty +00:30)</span>`
-          : (d.dhFlightComposite
-              ? ' <span class="muted-note">(ilk Report → son Release +00:30)</span>'
-              : (d.postFlightDuty ? ' <span class="muted-note">(+00:30 post-flight)</span>' : ''))
+          : (d.monthEndCutoff
+              ? ' <span class="muted-note">(ay sonu 24:00 cutoff · post-flight yok)</span>'
+              : (d.carryIn
+                  ? ' <span class="muted-note">(önceki aydan 00:00 → Release)</span>'
+                  : (d.dhFlightComposite
+                  ? ' <span class="muted-note">(ilk Report → son Release +00:30)</span>'
+                  : (d.postFlightDuty ? ' <span class="muted-note">(+00:30 post-flight)</span>' : ''))))
       }</td>
       <td>${hhmm(d.night)}</td>
       <td>${d.sectors}</td>
@@ -721,7 +758,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V6.4 ACTIVE · 3-month regression tested · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V6.7 ACTIVE · month carry-in/out tested · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{

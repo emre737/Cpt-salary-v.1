@@ -1,26 +1,18 @@
-# Roster Pay Premium V6.5 — Month Boundary Fix (Tested)
+# V6.7 — Month Carry-In / Carry-Out (Tested)
 
-The user-reported V6.4 failure was reproduced exactly:
-- Çağlar August roster: 117:40 Duty / 26:44 Night.
+Month-end:
+- Last-day duty crossing into next month is cut at 24:00.
+- No post-flight is added to the old month.
 
-Cause:
-- PDF.js can return `Jul. 31` as one text item.
-- V6.4 incorrectly used the numeric date list index as the weekday column.
-- Because 31 was missing from that numeric list, August 1 shifted left into the
-  July 31 cell and inherited the previous-month overnight flight.
+Next-month carry-in:
+- If day 1 starts with XQ/DH/SB/SIM continuation and Release but no Report,
+  the new month creates a synthetic 00:00 carry-in duty.
+- Flight/DH/SIM carry-in gets +00:30 post-flight at its real Release.
+- Night is calculated normally in the new month.
+- Standby carry-in remains 25% and gets no Night.
 
-Fix:
-- Weekday/calendar column is now derived from the actual X coordinate of each
-  numeric date header, not from its array position.
+User example:
+- Aug 31: 19:50 -> 24:00 = 04:10 Duty, no post-flight.
+- Sep 1: 00:00 -> 01:55 +00:30 = 02:25 Duty, Night 01:25.
 
-Browser-like span regression tests all PASS:
-- July 2026: 145:18 Duty / 20:33 Night
-- August 2026: 137:33 Duty / 11:13 Night
-- September 2026: 111:03 Duty / 09:05 Night
-- Çağlar August roster: 112:22 Duty / 21:46 Night
-
-Critical tests:
-- Çağlar Aug 1: 10:40→16:02 = 05:52, no July 31 bleed
-- Aug 30 activated standby: 11:50, 1 sector
-- Sep 22: 05:25, 2 sectors
-- Sep 23: separate standby 02:00, 0 sectors
+Regression tests PASS.
