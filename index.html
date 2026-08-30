@@ -231,7 +231,7 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V5.6 ACTIVE</div>
+          <div class="pill">V5.7 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -417,7 +417,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.6 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.7 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
@@ -593,9 +593,30 @@ function parseCell(day, lines){
 
 function pair(cells){
   const out=[]; let open=null;
+
   for(const c of cells){
+    // Overnight carry-over:
+    // a day cell may contain previous night's Release first, then a new Report later.
+    const reportH=toH(c.report);
+    const releaseH=toH(c.release);
+    const releaseBelongsToPrevious = !!(
+      open && c.release && c.report &&
+      reportH!=null && releaseH!=null &&
+      releaseH < reportH
+    );
+
+    if(releaseBelongsToPrevious){
+      open.release=c.release;
+      out.push(open);
+      open=null;
+    }
+
     if(c.report){
-      if(open) out.push(open);
+      if(open){
+        out.push(open);
+        open=null;
+      }
+
       open={
         day:c.day, report:c.report, release:'', standby:c.standby,
         standbyEnd:c.standbyEnd||'', hasDH:!!c.hasDH,
@@ -603,26 +624,33 @@ function pair(cells){
         sectors:c.sectors, plannedFlight:c.plannedFlight,
         lines:[...c.lines], codes:[...(c.codes||[])]
       };
+
+      if(c.release && !releaseBelongsToPrevious){
+        open.release=c.release;
+        out.push(open);
+        open=null;
+      }
     } else if(open){
       open.simExtra += c.simExtra;
       open.simSessions += (c.simSessions||0);
       open.sectors += c.sectors;
       open.plannedFlight += c.plannedFlight;
       open.hasDH = open.hasDH || !!c.hasDH;
+      open.standby = open.standby || c.standby;
       if(c.standbyEnd) open.standbyEnd=c.standbyEnd;
       open.lines.push(...c.lines);
       open.codes.push(...(c.codes||[]));
-    }
-    if(c.release && open){
-      open.release=c.release;
-      out.push(open); open=null;
+
+      if(c.release){
+        open.release=c.release;
+        out.push(open);
+        open=null;
+      }
     }
   }
+
   if(open) out.push(open);
 
-  // CAE rule: if DH and operating flight belong to the same calendar-day duty chain,
-  // use the day's FIRST Report and FINAL Release as one continuous duty.
-  // This applies whether DH is before or after the operating sector.
   const merged=[];
   for(const d of out){
     const prev=merged[merged.length-1];
@@ -631,7 +659,6 @@ function pair(cells){
       const combinedSectors=(prev.sectors||0)+(d.sectors||0);
 
       if(combinedHasDH && combinedSectors>0){
-        // Keep the first Report from the first segment and final Release from the last segment.
         prev.release=d.release || prev.release;
         prev.hasDH=combinedHasDH;
         prev.sectors=combinedSectors;
@@ -649,7 +676,6 @@ function pair(cells){
     merged.push(d);
   }
 
-  // Mark single parsed duties that already contain both DH and operating flight.
   merged.forEach(d=>{
     if(d.hasDH && (d.sectors||0)>0) d.dhFlightComposite=true;
   });
@@ -935,7 +961,7 @@ function recalc(){
     const hasActiveDuty=hasFlightSectors || !!d.hasDH || (d.simSessions||0)>0;
     const postFlightDuty=hasActiveDuty ? 0.5 : 0;
 
-    // DUTY RULES V5.6 (CAE-aligned)
+    // DUTY RULES V5.7 (CAE-aligned)
     // Flight / DH / SIM: FIRST Report -> FINAL Release + 00:30 post-flight.
     // DH + operating flight is one continuous duty whether DH is before or after the flight.
     // The +00:30 is added ONCE at the end of that full duty.
@@ -1103,7 +1129,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V5.6 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V5.7 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
