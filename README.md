@@ -1,26 +1,22 @@
-# Roster Pay Premium V6.1 — Activated Standby Fix
+# Roster Pay Premium V6.4 — Three-Month Regression Tested
 
-30 Ağustos tipi görevler için parser düzeltildi.
+Gerçek July, August ve September 2026 roster PDF'leriyle test edildi.
 
-Roster örneği:
-- Report 03:30
-- SB1 03:30 → 06:15
-- Report 06:15
-- Release 06:15
-- DH ADB 07:30 → 09:37 FRA
-- XQ911 FRA 12:10 → 16:06 ADB
-- Final Release 16:06
+Beklenen roster-bazlı sonuçlar (uygulamanın Math.round hh:mm gösterimi):
+- July 2026: Duty 145:18, Night 20:33
+- August 2026: Duty 137:33, Night 11:13
+- September 2026: Duty 111:03, Night 09:05
 
-06:15'teki Report + Release artık ayrı, sıfır süreli duty oluşturmaz.
-Bunlar standby activation boundary olarak işlenir.
+Düzeltilen iki hata:
+1. Calendar cell bleed:
+   "Aug. 1" / "Sep. 1" gibi komşu ay etiketleri day-number x konumunu kaydırabiliyordu.
+   Artık 7 sabit takvim sütunu kullanılıyor. July 31 standby'a August 1 uçuşu bulaşmıyor.
+2. Post-flight Night first-load:
+   +00:30 post-flight Night hesabı artık PDF ilk okunduğu anda uygulanıyor;
+   ikinci recalc gerekmiyor.
 
-Hesap:
-- Standby: 02:45 × %25 = 00:41
-- Active duty: 06:15 → 16:06 = 09:51
-- Post-flight: +00:30
-- Toplam duty credit ≈ 11:02
-- Sektör: 1 (XQ911)
-- DH sektör sayısına eklenmez
-- Standby kısmı night pay'e girmez
-
-V6.0 event parser, DH, SIM, Instructor ve ücret kuralları korunmuştur.
+Kritik regressionlar:
+- July 31: STBY 03:00–13:00 => 02:30, 0 sektör.
+- August 30: STBY 03:30–06:15 + activation + DH + XQ911, final Release 16:54 => 11:50, 1 sektör.
+- September 22: 19:30 -> next-day 00:25 => 05:25, 2 sektör.
+- September 23: separate STBY 13:00–21:00 => 02:00, 0 sektör.
