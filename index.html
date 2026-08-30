@@ -231,7 +231,7 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V6.0 ACTIVE</div>
+          <div class="pill">V6.1 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -417,7 +417,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V6.0 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V6.1 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
@@ -600,6 +600,7 @@ function pair(cells){
     release:'',
     standby:false,
     standbyEnd:'',
+    activationStart:'',
     standbySeen:false,
     hasDH:false,
     simExtra:0,
@@ -668,10 +669,31 @@ function pair(cells){
   for(const c of cells){
     const parsed=(c.events ? c : parseCell(c.day,c.lines));
 
+    // Activated standby pattern used by CAE/roster:
+    // Report 03:30 -> SB1 03:30-06:15 -> Report 06:15 -> Release 06:15
+    // -> DH/flight -> final Release 16:06.
+    //
+    // The Report+Release at 06:15 is an activation boundary, NOT a zero-length
+    // separate duty. Detect it for the whole cell so event order does not matter.
+    let activationBoundary='';
+    if(open && open.standby && open.standbyEnd){
+      const hasBoundaryReport=parsed.events.some(e=>e.type==='report' && e.time===open.standbyEnd);
+      const hasBoundaryRelease=parsed.events.some(e=>e.type==='release' && e.time===open.standbyEnd);
+      if(hasBoundaryReport && hasBoundaryRelease){
+        activationBoundary=open.standbyEnd;
+      }
+    }
+
     for(const e of parsed.events){
       if(e.type==='report'){
-        // A new Report should normally occur only after the previous Release.
-        // If the source is malformed, keep the old duty rather than merging both.
+        // If standby is activated exactly when the standby window ends, keep the
+        // original duty open. This Report marks the start of 100% active duty.
+        if(open && open.standby && open.standbyEnd && e.time===open.standbyEnd){
+          open.activationStart=e.time;
+          if(e.raw) open.lines.push(e.raw);
+          continue;
+        }
+
         if(open){
           out.push(finishDuty(open,''));
         }
@@ -682,18 +704,21 @@ function pair(cells){
       }
 
       if(e.type==='release'){
+        // Ignore the standby boundary Release when the same-time activation Report
+        // exists. The duty remains open until the FINAL Release after DH/flight.
+        if(open && activationBoundary && e.time===activationBoundary){
+          if(!open.activationStart) open.activationStart=activationBoundary;
+          if(e.raw) open.lines.push(e.raw);
+          continue;
+        }
+
         if(open){
           out.push(finishDuty(open,e.time));
           open=null;
         }
-        // A carry-over Release at the beginning of the selected month can exist
-        // without its previous month's Report. It is intentionally ignored.
         continue;
       }
 
-      // Activity belongs only to whichever Report is currently open.
-      // This prevents an early-morning XQ continuation from leaking into a later
-      // same-day standby or flight duty.
       if(open) absorb(open,e);
     }
   }
@@ -787,7 +812,8 @@ async function extractPdf(f){
 }
 function renderType(d){
   let tag='Duty', cls='';
-  if(d.standby){ tag='STBY'; cls='stby'; }
+  if(d.activatedStandby){ tag='STBY → Duty'; cls='stby'; }
+  else if(d.standby){ tag='STBY'; cls='stby'; }
   else if((d.simSessions||0)>0){ tag='SIM'; cls='sim'; }
   if(d.training) return `<span class="tag train">${tag} · Eğitim</span>`;
   return `<span class="tag ${cls}">${tag}</span>`;
@@ -980,15 +1006,16 @@ function recalc(){
     const hasActiveDuty=hasFlightSectors || !!d.hasDH || (d.simSessions||0)>0;
     const postFlightDuty=hasActiveDuty ? 0.5 : 0;
 
-    // DUTY RULES V6.0 (event-based / CAE-aligned)
+    // DUTY RULES V6.1 (event-based / CAE-aligned)
     // Flight / DH / SIM: FIRST Report -> FINAL Release + 00:30 post-flight.
     // DH + operating flight is one continuous duty whether DH is before or after the flight.
     // The +00:30 is added ONCE at the end of that full duty.
     // Standby-only: %25.
     // Activated standby: standby section %25 + active section %100 + 00:30 post-flight.
-    if(d.standby && hasActiveDuty && d.standbyEnd){
-      const standbyPart=dur(d.report,d.standbyEnd)*0.25;
-      const activePart=dur(d.standbyEnd,d.release);
+    if(d.standby && hasActiveDuty && (d.activationStart||d.standbyEnd)){
+      const activation=d.activationStart||d.standbyEnd;
+      const standbyPart=dur(d.report,activation)*0.25;
+      const activePart=dur(activation,d.release);
       d.credit=standbyPart + activePart + 0.5;
       d.activatedStandby=true;
       d.standbyCredit=standbyPart;
@@ -1005,7 +1032,7 @@ function recalc(){
       d.activeCredit=base;
     }
     d.night = d.activatedStandby
-      ? overlapNight(d.standbyEnd,d.release)
+      ? overlapNight((d.activationStart||d.standbyEnd),d.release)
       : (d.standby ? 0 : overlapNight(d.report,d.release));
     d.postFlightDuty=postFlightDuty;
     d.extra=Math.max(0,d.sectors-2);
@@ -1150,7 +1177,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V6.0 ACTIVE · event-based roster parser · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V6.1 ACTIVE · activated standby fix · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
