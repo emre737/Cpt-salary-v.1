@@ -1,22 +1,26 @@
-# Roster Pay Premium V6.4 — Three-Month Regression Tested
+# Roster Pay Premium V6.5 — Month Boundary Fix (Tested)
 
-Gerçek July, August ve September 2026 roster PDF'leriyle test edildi.
+The user-reported V6.4 failure was reproduced exactly:
+- Çağlar August roster: 117:40 Duty / 26:44 Night.
 
-Beklenen roster-bazlı sonuçlar (uygulamanın Math.round hh:mm gösterimi):
-- July 2026: Duty 145:18, Night 20:33
-- August 2026: Duty 137:33, Night 11:13
-- September 2026: Duty 111:03, Night 09:05
+Cause:
+- PDF.js can return `Jul. 31` as one text item.
+- V6.4 incorrectly used the numeric date list index as the weekday column.
+- Because 31 was missing from that numeric list, August 1 shifted left into the
+  July 31 cell and inherited the previous-month overnight flight.
 
-Düzeltilen iki hata:
-1. Calendar cell bleed:
-   "Aug. 1" / "Sep. 1" gibi komşu ay etiketleri day-number x konumunu kaydırabiliyordu.
-   Artık 7 sabit takvim sütunu kullanılıyor. July 31 standby'a August 1 uçuşu bulaşmıyor.
-2. Post-flight Night first-load:
-   +00:30 post-flight Night hesabı artık PDF ilk okunduğu anda uygulanıyor;
-   ikinci recalc gerekmiyor.
+Fix:
+- Weekday/calendar column is now derived from the actual X coordinate of each
+  numeric date header, not from its array position.
 
-Kritik regressionlar:
-- July 31: STBY 03:00–13:00 => 02:30, 0 sektör.
-- August 30: STBY 03:30–06:15 + activation + DH + XQ911, final Release 16:54 => 11:50, 1 sektör.
-- September 22: 19:30 -> next-day 00:25 => 05:25, 2 sektör.
-- September 23: separate STBY 13:00–21:00 => 02:00, 0 sektör.
+Browser-like span regression tests all PASS:
+- July 2026: 145:18 Duty / 20:33 Night
+- August 2026: 137:33 Duty / 11:13 Night
+- September 2026: 111:03 Duty / 09:05 Night
+- Çağlar August roster: 112:22 Duty / 21:46 Night
+
+Critical tests:
+- Çağlar Aug 1: 10:40→16:02 = 05:52, no July 31 bleed
+- Aug 30 activated standby: 11:50, 1 sector
+- Sep 22: 05:25, 2 sectors
+- Sep 23: separate standby 02:00, 0 sectors

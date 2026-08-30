@@ -231,7 +231,7 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V6.4 ACTIVE</div>
+          <div class="pill">V6.5 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -417,7 +417,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V6.4 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V6.5 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
@@ -773,7 +773,12 @@ async function extractPdf(f){
         .filter(h=>Math.abs(h.y-ys[row])<5)
         .sort((a,b)=>a.x-b.x);
 
-      rowHeaders.forEach((h,col)=>{
+      rowHeaders.forEach((h)=>{
+        // Adjacent-month labels such as "Jul. 31" can arrive from PDF.js as ONE
+        // text item and therefore disappear from numeric rowHeaders. Never use
+        // rowHeaders array index as the weekday column. Resolve the real column
+        // directly from the numeric date header's X position.
+        const col=Math.max(0,Math.min(6,Math.floor((h.x-calendarLeft)/colWidth)));
         const left=calendarLeft+col*colWidth;
         const right=calendarLeft+(col+1)*colWidth;
         const top=ys[row]+5;
@@ -1009,7 +1014,7 @@ function recalc(){
     const hasActiveDuty=hasFlightSectors || !!d.hasDH || (d.simSessions||0)>0;
     const postFlightDuty=hasActiveDuty ? 0.5 : 0;
 
-    // DUTY RULES V6.4 (event-based / CAE-aligned)
+    // DUTY RULES V6.5 (event-based / CAE-aligned)
     // Flight / DH / SIM: FIRST Report -> FINAL Release + 00:30 post-flight.
     // DH + operating flight is one continuous duty whether DH is before or after the flight.
     // The +00:30 is added ONCE at the end of that full duty.
@@ -1184,7 +1189,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V6.4 ACTIVE · 3-month regression tested · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V6.5 ACTIVE · 4-roster month-boundary tested · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
