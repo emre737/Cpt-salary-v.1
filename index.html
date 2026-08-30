@@ -231,7 +231,7 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V5.9 ACTIVE</div>
+          <div class="pill">V6.0 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -417,7 +417,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.9 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V6.0 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
@@ -500,201 +500,205 @@ function groupLines(items){
 }
 
 function parseCell(day, lines){
-  const text = lines.join(' | ');
-  const report=(text.match(/Report\s+(\d{1,2}:\d{2})/i)||[])[1]||'';
-  const releases=[...text.matchAll(/Release\s+(\d{1,2}:\d{2})/gi)].map(m=>m[1]);
-  const release=releases.length ? releases[releases.length-1] : '';
-  const standby=/\bSB(?:1|2|3|4|5|-PF)\b/i.test(text);
-  const hasDH=/\bDH\b/i.test(text);
-
-  let simExtra=0, simSessions=0, sectors=0, plannedFlight=0;
-  const hotels=[];
-
+  const text=lines.join(' | ');
+  const events=[];
   const times=s=>[...String(s||'').matchAll(/(\d{1,2}:\d{2})/g)].map(m=>m[1]);
 
-  let standbyEnd='';
-  for(const line of lines){
-    if(/\bSB(?:1|2|3|4|5|-PF)\b/i.test(line)){
-      const st=times(line);
-      if(st.length>=2) standbyEnd=st[st.length-1];
-    }
-  }
-
+  // Keep the visual top-to-bottom order inside each calendar cell.
+  // This is the key difference from the old parser: we do NOT collapse a day
+  // into one Report / one Release / one sector count.
   for(let i=0;i<lines.length;i++){
     const line=lines[i];
+    const lineEvents=[];
 
-    if(/BOEING-[A-Z]/i.test(line)){
-      simSessions++;
+    const reportMatch=line.match(/Report\s*(\d{1,2}:\d{2})/i);
+    if(reportMatch){
+      lineEvents.push({
+        type:'report', time:reportMatch[1],
+        pos:Math.max(0,line.search(/Report/i)), raw:line, lineIndex:i
+      });
+    }
+
+    const sectorMatch=line.match(/(XQ\d+)/i);
+    if(sectorMatch){
       let ts=times(line);
-      // SIM finish time is often on a wrapped "~ HH:MM" line.
-      for(let j=i+1;j<Math.min(lines.length,i+4)&&ts.length<2;j++){
+      // A sector can wrap onto the following "~ HH:MM ..." line.
+      for(let j=i+1;j<Math.min(lines.length,i+3)&&ts.length<2;j++){
+        if(!/^\s*~/.test(lines[j])) break;
         ts=ts.concat(times(lines[j]));
       }
-      if(ts.length>=2) simExtra += dur(ts[0],ts[1]);
+      lineEvents.push({
+        type:'sector', flightNo:sectorMatch[1].toUpperCase(), times:ts,
+        pos:Math.max(0,line.search(/XQ\d+/i)), raw:line, lineIndex:i
+      });
     }
 
-    if(/\bXQ\d+\b/i.test(line) && !/^\s*~/.test(line)){
-      sectors++;
+    // DH may appear as "DH TZX..." or visually joined as "DHTZX...".
+    const dhPos=line.search(/(^|\s)DH(?=\s|[A-Z])/i);
+    if(dhPos>=0){
       let ts=times(line);
-      if(ts.length<2 && i+1<lines.length) ts=ts.concat(times(lines[i+1]));
-      if(ts.length<2 && i>0) ts=times(lines[i-1]).concat(ts);
-      if(ts.length>=2) plannedFlight += dur(ts[0],ts[1]);
+      for(let j=i+1;j<Math.min(lines.length,i+3)&&ts.length<2;j++){
+        if(!/^\s*~/.test(lines[j])) break;
+        ts=ts.concat(times(lines[j]));
+      }
+      lineEvents.push({
+        type:'dh', times:ts, pos:dhPos, raw:line, lineIndex:i
+      });
     }
 
-    if(/\bHotel\b/i.test(line)){
-      let station=(line.match(/Hotel\s+([A-Z]{3})/i)||[])[1]||'';
+    const sbPos=line.search(/SB(?:1|2|3|4|5|-PF)/i);
+    if(sbPos>=0){
       let ts=times(line);
-      const nearby=[];
-      for(let j=Math.max(0,i-3);j<=Math.min(lines.length-1,i+3);j++){
-        if(j!==i) nearby.push(lines[j]);
+      for(let j=i+1;j<Math.min(lines.length,i+3)&&ts.length<2;j++){
+        if(!/^\s*~/.test(lines[j])) break;
+        ts=ts.concat(times(lines[j]));
       }
-
-      // IMPORTANT: A DH/Travel airport can be only a transfer point (e.g. AYT on the way to KYA).
-      // Never use arbitrary first IATA code for Hotel station. Priority is:
-      // Hotel explicit > Transit > Report/Release > SIM > hotel-adjacent route destination.
-      if(!station){
-        for(const n of nearby){
-          let m=n.match(/\bTransit\s+([A-Z]{3})\b/i);
-          if(m && m[1]!=='ADB'){ station=m[1]; break; }
-        }
-      }
-      if(!station){
-        for(const n of nearby){
-          let m=n.match(/\b(?:Report|Release)\s+\d{1,2}:\d{2}\s+([A-Z]{3})\b/i);
-          if(m && m[1]!=='ADB'){ station=m[1]; break; }
-        }
-      }
-      if(!station){
-        for(const n of nearby){
-          let m=n.match(/\bBOEING-[A-Z]\s+([A-Z]{3})\b/i);
-          if(m && m[1]!=='ADB'){ station=m[1]; break; }
-        }
-      }
-      if(!station){
-        // Last resort only: destination of a route line nearest Hotel.
-        // Travel/DH ORIGIN is deliberately ignored to avoid AYT/KYA double counting.
-        for(const n of nearby){
-          let m=n.match(/~\s*\d{1,2}:\d{2}\s+([A-Z]{3})\b/i);
-          if(m && m[1]!=='ADB'){ station=m[1]; break; }
-        }
-      }
-
-      for(const n of nearby) ts=ts.concat(times(n));
-      hotels.push({station:(station||'').toUpperCase(), times:ts.slice(0,2), raw:line});
+      lineEvents.push({
+        type:'standby', times:ts, pos:sbPos, raw:line, lineIndex:i
+      });
     }
+
+    const simPos=line.search(/BOEING-[A-Z]/i);
+    if(simPos>=0){
+      let ts=times(line);
+      for(let j=i+1;j<Math.min(lines.length,i+4)&&ts.length<2;j++){
+        if(!/^\s*~/.test(lines[j]) && !/BOEING/i.test(lines[j])) break;
+        ts=ts.concat(times(lines[j]));
+      }
+      lineEvents.push({
+        type:'sim', times:ts, pos:simPos, raw:line, lineIndex:i
+      });
+    }
+
+    const releaseMatch=line.match(/Release\s*(\d{1,2}:\d{2})/i);
+    if(releaseMatch){
+      lineEvents.push({
+        type:'release', time:releaseMatch[1],
+        pos:Math.max(0,line.search(/Release/i)), raw:line, lineIndex:i
+      });
+    }
+
+    // Normally there is one event per visual line, but sorting by text position
+    // makes mixed lines deterministic too.
+    lineEvents.sort((a,b)=>a.pos-b.pos);
+    events.push(...lineEvents);
   }
 
-  // Useful airport codes in the day cell, for hotel-station inference.
   const codes=[...text.matchAll(/\b([A-Z]{3})\b/g)].map(m=>m[1])
     .filter(c=>!['OFF','SIM'].includes(c));
 
-  return {day, lines, text, report, release, releases, standby, standbyEnd, hasDH, simExtra, simSessions, sectors, plannedFlight, hotels, codes};
+  return {day, lines, text, events, codes};
 }
 
 function pair(cells){
   const out=[];
-
-  // Calendar cells are already sorted chronologically by page/row/column.
-  // Build an absolute day index so midnight rollover never confuses pairing.
-  const ordered=cells.map((c,idx)=>({...c,_idx:idx}));
-
-  // Report opens a duty. A Release can be:
-  // 1) later in the same cell/day, or
-  // 2) in a later calendar cell (often after midnight).
-  // If a later cell contains BOTH an early carry-over Release and a later new Report,
-  // the Release closes the previous duty first; the Report then opens the next duty.
   let open=null;
 
-  for(const c of ordered){
-    const report=c.report||'';
-    const release=c.release||'';
-    const rH=toH(report);
-    const relH=toH(release);
-
-    if(open){
-      // Any Release encountered after an open Report closes that open duty.
-      // This is intentionally processed BEFORE a new Report in the same cell.
-      if(release){
-        open.release=release;
-        open.releaseCellIndex=c._idx;
-        open.releaseDay=c.day;
-        out.push(open);
-        open=null;
-      }
-    }
-
-    if(report){
-      // Start today's/new duty only after a carry-over duty has been closed.
-      open={
-        day:c.day,
-        report,
-        release:'',
-        reportCellIndex:c._idx,
-        releaseCellIndex:null,
-        standby:c.standby,
-        standbyEnd:c.standbyEnd||'',
-        hasDH:!!c.hasDH,
-        simExtra:c.simExtra,
-        simSessions:c.simSessions||0,
-        sectors:c.sectors,
-        plannedFlight:c.plannedFlight,
-        lines:[...c.lines],
-        codes:[...(c.codes||[])]
-      };
-
-      // Same-cell Release belongs to this new Report only if it is chronologically
-      // after the Report. Example 13:00 -> 21:00. If Release is 00:25 and Report
-      // is 13:00, that 00:25 was the previous night's carry-over and must NOT close it.
-      if(release && rH!=null && relH!=null && relH>=rH){
-        open.release=release;
-        open.releaseCellIndex=c._idx;
-        open.releaseDay=c.day;
-        out.push(open);
-        open=null;
-      }
-    }
-
-    // While a duty remains open, carry activity metadata forward from following cells
-    // until its Release is encountered.
-    if(open && !report){
-      open.simExtra += c.simExtra||0;
-      open.simSessions += c.simSessions||0;
-      open.sectors += c.sectors||0;
-      open.plannedFlight += c.plannedFlight||0;
-      open.hasDH = open.hasDH || !!c.hasDH;
-      open.standby = open.standby || !!c.standby;
-      if(c.standbyEnd) open.standbyEnd=c.standbyEnd;
-      open.lines.push(...(c.lines||[]));
-      open.codes.push(...(c.codes||[]));
-    }
-  }
-  if(open) out.push(open);
-
-  // A duty that spans into the next calendar day must also inherit the flight/DH/SIM
-  // metadata from its release cell. This is essential for 22 Sep -> 23 Sep style duties.
-  for(const d of out){
-    if(d.releaseCellIndex!=null && d.releaseCellIndex>d.reportCellIndex){
-      for(let i=d.reportCellIndex+1;i<=d.releaseCellIndex;i++){
-        const c=ordered[i];
-        if(!c) continue;
-        // Do not absorb a new later Report from the release day into the old duty.
-        const sameReleaseCell=(i===d.releaseCellIndex);
-        if(sameReleaseCell && c.report) {
-          // Still keep lines occurring before the later Report implicitly via parsed
-          // sector metadata already associated with this calendar cell.
-        }
-        d.hasDH = d.hasDH || !!c.hasDH;
-        d.sectors += c.sectors||0;
-        d.plannedFlight += c.plannedFlight||0;
-        d.simSessions += c.simSessions||0;
-      }
-    }
-  }
-
-  out.forEach(d=>{
-    if(d.hasDH && (d.sectors||0)>0) d.dhFlightComposite=true;
+  const startDuty=(day,time)=>({
+    day,
+    report:time,
+    release:'',
+    standby:false,
+    standbyEnd:'',
+    standbySeen:false,
+    hasDH:false,
+    simExtra:0,
+    simSessions:0,
+    sectorRecords:{},
+    sectors:0,
+    plannedFlight:0,
+    lines:[],
+    codes:[]
   });
 
+  const absorb=(d,e)=>{
+    if(!d) return;
+
+    if(e.type==='sector'){
+      const key=e.flightNo;
+      if(!d.sectorRecords[key]) d.sectorRecords[key]=[];
+      for(const t of (e.times||[])){
+        if(!d.sectorRecords[key].includes(t)) d.sectorRecords[key].push(t);
+      }
+    } else if(e.type==='dh'){
+      d.hasDH=true;
+    } else if(e.type==='standby'){
+      d.standby=true;
+      const ts=e.times||[];
+      if(ts.length>=2){
+        d.standbyEnd=ts[ts.length-1];
+      } else if(ts.length===1 && d.standbySeen){
+        // Overnight continuation of a standby line.
+        d.standbyEnd=ts[0];
+      }
+      d.standbySeen=true;
+    } else if(e.type==='sim'){
+      d.simSessions += 1;
+      const ts=e.times||[];
+      if(ts.length>=2) d.simExtra += dur(ts[0],ts[ts.length-1]);
+    }
+
+    if(e.raw) d.lines.push(e.raw);
+  };
+
+  const finishDuty=(d,release)=>{
+    d.release=release||'';
+
+    const sectorKeys=Object.keys(d.sectorRecords);
+    d.sectors=sectorKeys.length;
+
+    let pf=0;
+    for(const key of sectorKeys){
+      const ts=d.sectorRecords[key];
+      if(ts.length>=2) pf += dur(ts[0],ts[ts.length-1]);
+    }
+    d.plannedFlight=pf;
+    d.dhFlightComposite=!!(d.hasDH && d.sectors>0);
+
+    delete d.sectorRecords;
+    delete d.standbySeen;
+    return d;
+  };
+
+  // Process every calendar cell, then every event in its visual order.
+  // Example 23 Sep:
+  // XQ9239 continuation -> Release 00:25 -> Report 13:00 -> SB3 -> Release 21:00.
+  // The first two events belong to the duty opened on 22 Sep; the later Report
+  // opens a completely separate standby duty.
+  for(const c of cells){
+    const parsed=(c.events ? c : parseCell(c.day,c.lines));
+
+    for(const e of parsed.events){
+      if(e.type==='report'){
+        // A new Report should normally occur only after the previous Release.
+        // If the source is malformed, keep the old duty rather than merging both.
+        if(open){
+          out.push(finishDuty(open,''));
+        }
+        open=startDuty(parsed.day,e.time);
+        open.codes.push(...(parsed.codes||[]));
+        if(e.raw) open.lines.push(e.raw);
+        continue;
+      }
+
+      if(e.type==='release'){
+        if(open){
+          out.push(finishDuty(open,e.time));
+          open=null;
+        }
+        // A carry-over Release at the beginning of the selected month can exist
+        // without its previous month's Report. It is intentionally ignored.
+        continue;
+      }
+
+      // Activity belongs only to whichever Report is currently open.
+      // This prevents an early-morning XQ continuation from leaking into a later
+      // same-day standby or flight duty.
+      if(open) absorb(open,e);
+    }
+  }
+
+  if(open) out.push(finishDuty(open,''));
   return out;
 }
 
@@ -784,7 +788,7 @@ async function extractPdf(f){
 function renderType(d){
   let tag='Duty', cls='';
   if(d.standby){ tag='STBY'; cls='stby'; }
-  else if(d.simExtra>0){ tag='SIM'; cls='sim'; }
+  else if((d.simSessions||0)>0){ tag='SIM'; cls='sim'; }
   if(d.training) return `<span class="tag train">${tag} · Eğitim</span>`;
   return `<span class="tag ${cls}">${tag}</span>`;
 }
@@ -976,7 +980,7 @@ function recalc(){
     const hasActiveDuty=hasFlightSectors || !!d.hasDH || (d.simSessions||0)>0;
     const postFlightDuty=hasActiveDuty ? 0.5 : 0;
 
-    // DUTY RULES V5.9 (CAE-aligned)
+    // DUTY RULES V6.0 (event-based / CAE-aligned)
     // Flight / DH / SIM: FIRST Report -> FINAL Release + 00:30 post-flight.
     // DH + operating flight is one continuous duty whether DH is before or after the flight.
     // The +00:30 is added ONCE at the end of that full duty.
@@ -1000,7 +1004,9 @@ function recalc(){
       d.standbyCredit=0;
       d.activeCredit=base;
     }
-    d.night=d.standby && !d.activatedStandby ? 0 : overlapNight(d.report,d.release);
+    d.night = d.activatedStandby
+      ? overlapNight(d.standbyEnd,d.release)
+      : (d.standby ? 0 : overlapNight(d.report,d.release));
     d.postFlightDuty=postFlightDuty;
     d.extra=Math.max(0,d.sectors-2);
     d.training=training.has(d.day);
@@ -1144,7 +1150,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V5.9 ACTIVE · datetime duty engine · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V6.0 ACTIVE · event-based roster parser · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
