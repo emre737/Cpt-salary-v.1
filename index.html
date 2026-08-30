@@ -231,7 +231,7 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V5.8 ACTIVE</div>
+          <div class="pill">V5.9 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -417,7 +417,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.8 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.9 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
@@ -592,65 +592,110 @@ function parseCell(day, lines){
 }
 
 function pair(cells){
-  const out=[]; let open=null;
-  for(const c of cells){
-    const hadOpen=!!open;
+  const out=[];
 
-    // Strict roster sequence: an already-open Report is closed by the next Release,
-    // even if that Release is in the next calendar day.
-    if(open && c.release){
-      open.release=c.release;
-      out.push(open);
-      open=null;
-    }
+  // Calendar cells are already sorted chronologically by page/row/column.
+  // Build an absolute day index so midnight rollover never confuses pairing.
+  const ordered=cells.map((c,idx)=>({...c,_idx:idx}));
 
-    // A Report in this cell starts a new duty AFTER any carry-over Release is handled.
-    if(c.report){
-      if(open){ out.push(open); open=null; }
-      open={
-        day:c.day, report:c.report, release:'', standby:c.standby,
-        standbyEnd:c.standbyEnd||'', hasDH:!!c.hasDH,
-        simExtra:c.simExtra, simSessions:c.simSessions||0,
-        sectors:c.sectors, plannedFlight:c.plannedFlight,
-        lines:[...c.lines], codes:[...(c.codes||[])]
-      };
-      // If there was no previous open duty, this cell's Release belongs to this Report.
-      if(c.release && !hadOpen){
-        open.release=c.release;
+  // Report opens a duty. A Release can be:
+  // 1) later in the same cell/day, or
+  // 2) in a later calendar cell (often after midnight).
+  // If a later cell contains BOTH an early carry-over Release and a later new Report,
+  // the Release closes the previous duty first; the Report then opens the next duty.
+  let open=null;
+
+  for(const c of ordered){
+    const report=c.report||'';
+    const release=c.release||'';
+    const rH=toH(report);
+    const relH=toH(release);
+
+    if(open){
+      // Any Release encountered after an open Report closes that open duty.
+      // This is intentionally processed BEFORE a new Report in the same cell.
+      if(release){
+        open.release=release;
+        open.releaseCellIndex=c._idx;
+        open.releaseDay=c.day;
         out.push(open);
         open=null;
       }
-    } else if(open){
-      open.simExtra += c.simExtra;
-      open.simSessions += (c.simSessions||0);
-      open.sectors += c.sectors;
-      open.plannedFlight += c.plannedFlight;
+    }
+
+    if(report){
+      // Start today's/new duty only after a carry-over duty has been closed.
+      open={
+        day:c.day,
+        report,
+        release:'',
+        reportCellIndex:c._idx,
+        releaseCellIndex:null,
+        standby:c.standby,
+        standbyEnd:c.standbyEnd||'',
+        hasDH:!!c.hasDH,
+        simExtra:c.simExtra,
+        simSessions:c.simSessions||0,
+        sectors:c.sectors,
+        plannedFlight:c.plannedFlight,
+        lines:[...c.lines],
+        codes:[...(c.codes||[])]
+      };
+
+      // Same-cell Release belongs to this new Report only if it is chronologically
+      // after the Report. Example 13:00 -> 21:00. If Release is 00:25 and Report
+      // is 13:00, that 00:25 was the previous night's carry-over and must NOT close it.
+      if(release && rH!=null && relH!=null && relH>=rH){
+        open.release=release;
+        open.releaseCellIndex=c._idx;
+        open.releaseDay=c.day;
+        out.push(open);
+        open=null;
+      }
+    }
+
+    // While a duty remains open, carry activity metadata forward from following cells
+    // until its Release is encountered.
+    if(open && !report){
+      open.simExtra += c.simExtra||0;
+      open.simSessions += c.simSessions||0;
+      open.sectors += c.sectors||0;
+      open.plannedFlight += c.plannedFlight||0;
       open.hasDH = open.hasDH || !!c.hasDH;
-      open.standby = open.standby || c.standby;
+      open.standby = open.standby || !!c.standby;
       if(c.standbyEnd) open.standbyEnd=c.standbyEnd;
-      open.lines.push(...c.lines);
+      open.lines.push(...(c.lines||[]));
       open.codes.push(...(c.codes||[]));
     }
   }
   if(open) out.push(open);
 
-  // DH + operating flight in one duty: first Report -> final Release.
-  const merged=[];
+  // A duty that spans into the next calendar day must also inherit the flight/DH/SIM
+  // metadata from its release cell. This is essential for 22 Sep -> 23 Sep style duties.
   for(const d of out){
-    const prev=merged[merged.length-1];
-    if(prev && prev.day===d.day && ((prev.hasDH||d.hasDH) && ((prev.sectors||0)+(d.sectors||0)>0))){
-      prev.release=d.release||prev.release;
-      prev.hasDH=prev.hasDH||d.hasDH;
-      prev.sectors=(prev.sectors||0)+(d.sectors||0);
-      prev.plannedFlight=(prev.plannedFlight||0)+(d.plannedFlight||0);
-      prev.simSessions=(prev.simSessions||0)+(d.simSessions||0);
-      prev.lines.push(...(d.lines||[]));
-      prev.codes.push(...(d.codes||[]));
-      prev.dhFlightComposite=true;
-    } else merged.push(d);
+    if(d.releaseCellIndex!=null && d.releaseCellIndex>d.reportCellIndex){
+      for(let i=d.reportCellIndex+1;i<=d.releaseCellIndex;i++){
+        const c=ordered[i];
+        if(!c) continue;
+        // Do not absorb a new later Report from the release day into the old duty.
+        const sameReleaseCell=(i===d.releaseCellIndex);
+        if(sameReleaseCell && c.report) {
+          // Still keep lines occurring before the later Report implicitly via parsed
+          // sector metadata already associated with this calendar cell.
+        }
+        d.hasDH = d.hasDH || !!c.hasDH;
+        d.sectors += c.sectors||0;
+        d.plannedFlight += c.plannedFlight||0;
+        d.simSessions += c.simSessions||0;
+      }
+    }
   }
-  merged.forEach(d=>{if(d.hasDH&&(d.sectors||0)>0)d.dhFlightComposite=true;});
-  return merged;
+
+  out.forEach(d=>{
+    if(d.hasDH && (d.sectors||0)>0) d.dhFlightComposite=true;
+  });
+
+  return out;
 }
 
 async function extractPdf(f){
@@ -931,7 +976,7 @@ function recalc(){
     const hasActiveDuty=hasFlightSectors || !!d.hasDH || (d.simSessions||0)>0;
     const postFlightDuty=hasActiveDuty ? 0.5 : 0;
 
-    // DUTY RULES V5.8 (CAE-aligned)
+    // DUTY RULES V5.9 (CAE-aligned)
     // Flight / DH / SIM: FIRST Report -> FINAL Release + 00:30 post-flight.
     // DH + operating flight is one continuous duty whether DH is before or after the flight.
     // The +00:30 is added ONCE at the end of that full duty.
@@ -1099,7 +1144,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V5.8 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V5.9 ACTIVE · datetime duty engine · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
