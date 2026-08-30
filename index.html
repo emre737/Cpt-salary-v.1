@@ -199,6 +199,31 @@
       font-size:15px;
     }
 
+
+    .segmented{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:6px;
+      padding:5px;
+      border-radius:16px;
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+    }
+    .seg-btn{
+      min-height:46px;
+      border:0;
+      border-radius:12px;
+      background:transparent;
+      color:var(--text);
+      font:inherit;
+      font-weight:700;
+    }
+    .seg-btn.active{
+      background:linear-gradient(135deg,#6ea8fe,#74f0d6);
+      color:#0f172a;
+    }
+    .tri-hidden{display:none !important;}
+
 </style>
 </head>
 <body>
@@ -206,7 +231,7 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V5.2 ACTIVE</div>
+          <div class="pill">V5.4 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -264,6 +289,17 @@
     <div class="field-help">Her duty için +330 €</div>
   </div>
 
+
+  <div class="friendly-field">
+    <label>Instructor</label>
+    <div class="segmented" id="instructorToggle">
+      <button type="button" class="seg-btn active" data-value="yes">Yes</button>
+      <button type="button" class="seg-btn" data-value="no">No</button>
+    </div>
+    <input id="instructorMode" type="hidden" value="yes" />
+    <div class="field-help">No seçilirse TRI baz ücreti ve TRI alanları tamamen gizlenir.</div>
+  </div>
+
   <div class="friendly-field">
     <label for="pdfFile">Roster PDF</label>
     <div class="file-picker">
@@ -298,7 +334,7 @@
             <div class="kpi"><div class="lbl">Duty</div><div class="val" id="dutyShow">—</div></div>
             <div class="kpi"><div class="lbl">Night</div><div class="val" id="nightShow">—</div></div>
             <div class="kpi"><div class="lbl">Ek sektör</div><div class="val" id="sectorShow">—</div></div>
-            <div class="kpi"><div class="lbl">TRI credit</div><div class="val" id="triShow">—</div></div>
+            <div class="kpi" id="triKpi"><div class="lbl">TRI credit</div><div class="val" id="triShow">—</div></div>
           </div>
         </section>
 
@@ -314,7 +350,7 @@
             <div id="dutyExtraText" class="muted-note" style="margin-top:7px">—</div>
           </div>
 
-          <div class="progress-wrap" style="margin-top:18px">
+          <div class="progress-wrap" id="triProgressWrap" style="margin-top:18px">
             <div class="progress-head">
               <span>TRI · İlk 12 saat baz ücrete dahil</span>
               <span id="triProgText">—</span>
@@ -350,7 +386,7 @@
           <div><label>Duty</label><input id="dutyEdit" type="text"></div>
           <div><label>Night</label><input id="nightEdit" type="text"></div>
           <div><label>Ek sektör</label><input id="sectorEdit" type="number" min="0" step="1"></div>
-          <div><label>TRI toplam credit</label><input id="triEdit" type="text"></div>
+          <div id="triManualField"><label>TRI toplam credit</label><input id="triEdit" type="text"></div>
         </div>
         <div class="grid4 manual" style="margin-top:12px">
           <div><label>İç hat tam yatı</label><input id="domFull" type="number" min="0" step="1" value="0"></div>
@@ -381,7 +417,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.2 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V5.4 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
@@ -396,6 +432,33 @@ if(offToDutyCountInput){
   offToDutyCountInput.addEventListener('input',()=>calcPay());
   offToDutyCountInput.addEventListener('change',()=>calcPay());
 }
+
+
+function applyInstructorMode(){
+  const yes=($('instructorMode')?.value||'yes')==='yes';
+  ['triKpi','triProgressWrap','triManualField'].forEach(id=>{
+    const el=$(id); if(el) el.classList.toggle('tri-hidden', !yes);
+  });
+  document.querySelectorAll('.tri-col').forEach(el=>el.classList.toggle('tri-hidden', !yes));
+  if(!yes){
+    if($('triEdit')) $('triEdit').value='00:00';
+    if($('triShow')) $('triShow').textContent='00:00';
+  } else if(activeDuties.length){
+    recalc();
+    return;
+  }
+  calcPay();
+}
+
+document.querySelectorAll('#instructorToggle .seg-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('#instructorToggle .seg-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    $('instructorMode').value=btn.dataset.value;
+    applyInstructorMode();
+  });
+});
+applyInstructorMode();
 
 </script>
 <script>
@@ -815,12 +878,21 @@ function applyLayovers(cells){
 
 function recalc(){
   const training=new Set($('trainingDays').value.split(',').map(x=>Number(x.trim())).filter(Boolean));
+  const instructorMode=($('instructorMode')?.value||'yes')==='yes';
   let duty=0, night=0, sectors=0, tri=0;
 
   activeDuties.forEach(d=>{
     const base=dur(d.report,d.release);
-    d.credit=d.standby ? base*.25 : base + d.simExtra;
+    const hasFlightSectors=(d.sectors||0)>0;
+    const postFlightDuty=hasFlightSectors ? 0.5 : 0;
+
+    // DUTY RULES V5.4
+    // 1) SIM day: duty is ONLY Report -> Release. No automatic SIM extra duty.
+    // 2) Flight-sector duty: add 00:30 post-flight duty once at the end of the duty.
+    // 3) Standby remains 25% for now; activated-standby logic will be handled separately.
+    d.credit=d.standby ? base*.25 : base + postFlightDuty;
     d.night=d.standby ? 0 : overlapNight(d.report,d.release);
+    d.postFlightDuty=postFlightDuty;
     d.extra=Math.max(0,d.sectors-2);
     d.training=training.has(d.day);
 
@@ -828,9 +900,9 @@ function recalc(){
     night += d.night;
     sectors += d.extra;
 
-    if(d.training){
-      // IMPORTANT: SIM training is a separate fixed 6:00 TRI credit per SIM session.
-      // Report–Release, DH, transfer and hotel remain duty items only.
+    if(instructorMode && d.training){
+      // SIM training: +6:00 TRI instructor credit per SIM session.
+      // This affects TRI pay only. SIM duty itself stays Report -> Release.
       if((d.simSessions||0)>0) tri += (d.simSessions||0)*6;
       else tri += d.plannedFlight;
     }
@@ -872,10 +944,10 @@ function recalc(){
       <td>${d.report||'—'}</td>
       <td>${d.release||'—'}</td>
       <td>${renderType(d)}</td>
-      <td>${hhmm(d.credit)}</td>
+      <td>${hhmm(d.credit)}${d.postFlightDuty ? ' <span class="muted-note">(+00:30 post-flight)</span>' : ''}</td>
       <td>${hhmm(d.night)}</td>
       <td>${d.sectors}</td>
-      <td>${(d.training && (d.simSessions||0)>0) ? hhmm((d.simSessions||0)*6) : '—'}</td>
+      <td class="tri-col">${(d.training && (d.simSessions||0)>0) ? hhmm((d.simSessions||0)*6) : '—'}</td>
     </tr>
   `).join('');
 
@@ -908,13 +980,15 @@ function calcPay(){
   const sectors=Math.max(0, Number($('sectorEdit').value)||0);
   const fx=Math.max(0, Number(String($('fx').value).replace(',','.'))||0);
 
-  const base=Number($('senioritySelect')?.value)||6490, triBase=378;
+  const base=Number($('senioritySelect')?.value)||6490;
+  const instructorMode=($('instructorMode')?.value||'yes')==='yes';
+  const triBase=instructorMode ? 378 : 0;
   const offToDutyCount=Math.max(0, Math.floor(Number($('offToDutyCount')?.value)||0));
   const offToDutyPay=offToDutyCount*330;
   const dutyPay=Math.min(duty,100)*28.6 + Math.max(0,duty-100)*52.8;
   const nightPay=night*71.3;
   const sectorPay=sectors*17.9;
-  const triPay=triBase + Math.max(0,tri-12)*35;
+  const triPay=instructorMode ? (triBase + Math.max(0,tri-12)*35) : 0;
   const lay=(Number($('domFull').value)||0)*30 + (Number($('domHalf').value)||0)*15 + (Number($('intFull').value)||0)*50 + (Number($('intHalf').value)||0)*25;
   const total=base+dutyPay+nightPay+triPay+sectorPay+lay + offToDutyPay;
 
@@ -925,10 +999,12 @@ function calcPay(){
     ['Baz maaş', base, palette.base],
     ['Duty', dutyPay, palette.duty],
     ['Night', nightPay, palette.night],
-    ['TRI', triPay, palette.tri],
     ['Sektör', sectorPay, palette.sector],
     ['Yatı', lay, palette.lay],
   ];
+  if(instructorMode){
+    items.splice(3,0,['TRI', triPay, palette.tri]);
+  }
   if(offToDutyCount > 0){
     items.push(['Off to Duty', offToDutyPay, palette.off]);
   }
@@ -953,7 +1029,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V5.2 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V5.4 ACTIVE · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
@@ -985,6 +1061,33 @@ if(offToDutyCountInput){
   offToDutyCountInput.addEventListener('input',()=>calcPay());
   offToDutyCountInput.addEventListener('change',()=>calcPay());
 }
+
+
+function applyInstructorMode(){
+  const yes=($('instructorMode')?.value||'yes')==='yes';
+  ['triKpi','triProgressWrap','triManualField'].forEach(id=>{
+    const el=$(id); if(el) el.classList.toggle('tri-hidden', !yes);
+  });
+  document.querySelectorAll('.tri-col').forEach(el=>el.classList.toggle('tri-hidden', !yes));
+  if(!yes){
+    if($('triEdit')) $('triEdit').value='00:00';
+    if($('triShow')) $('triShow').textContent='00:00';
+  } else if(activeDuties.length){
+    recalc();
+    return;
+  }
+  calcPay();
+}
+
+document.querySelectorAll('#instructorToggle .seg-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('#instructorToggle .seg-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    $('instructorMode').value=btn.dataset.value;
+    applyInstructorMode();
+  });
+});
+applyInstructorMode();
 
 </script>
 </body>
