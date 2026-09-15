@@ -1,0 +1,15 @@
+V6.9 validation
+
+PASS - JavaScript syntax check
+PASS - Business regression: July 145:18 / 20:33
+PASS - Business regression: August 137:33 / 11:13
+PASS - Business regression: September baseline 111:03 / 09:05
+PASS - Business regression: September latest 115:37 / 08:55
+PASS - Business regression: Caglar 112:22 / 21:46
+PASS - Sep 22 overnight duty 05:25 / 2 sectors
+PASS - Sep 23 standby 02:00 / 0 sectors
+PASS - Month carry-in/out regression
+PASS - Month-end cutoff regression
+PASS - Executive PDF definition / two-page structure / filename / download trigger
+PASS - Refresh hard-cache-buster flow
+PASS - Executive Premium visual reference rendered at 160 DPI with no clipping or overlap

@@ -250,12 +250,12 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V6.8 ACTIVE</div>
+          <div class="pill">V6.9 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
         <div class="hero-actions">
-          <button id="refreshBtn" class="refresh-btn" type="button" aria-label="En son sürümü yenile">↻ Yenile</button>
+          <button id="refreshBtn" class="refresh-btn" type="button" aria-label="En son sürümü refresh et">↻ Refresh</button>
           <div class="hero-emblem" aria-label="Sun emblem">
           <svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <defs>
@@ -441,7 +441,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V6.8 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V6.9 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -1033,7 +1033,7 @@ function recalc(){
     d.monthEndCutoff=monthEndCutoff;
     d.effectiveRelease=effectiveRelease;
 
-    // DUTY RULES V6.8 (event-based / CAE-aligned)
+    // DUTY RULES V6.9 (event-based / CAE-aligned)
     // Flight / DH / SIM: FIRST Report -> FINAL Release + 00:30 post-flight.
     // DH + operating flight is one continuous duty whether DH is before or after the flight.
     // The +00:30 is added ONCE at the end of that full duty.
@@ -1218,6 +1218,13 @@ function buildResultsPdfDefinition(){
   const offCount=Math.max(0,Math.floor(Number($('offToDutyCount')?.value)||0));
   const trainingDays=($('trainingDays')?.value||'').trim()||'—';
   const fx=($('fx')?.value||'—').toString();
+  const rosterLabel=currentRosterLabel||file.files[0]?.name||'Roster';
+  const totalEur=$('totalEur')?.textContent||'—';
+  const totalTl=$('totalTl')?.textContent||'—';
+  const dutyValue=$('dutyEdit')?.value||'—';
+  const nightValue=$('nightEdit')?.value||'—';
+  const sectorValue=String($('sectorEdit')?.value||'0');
+  const triValue=$('triEdit')?.value||'00:00';
 
   const breakdownRows=Array.from(document.querySelectorAll('#breakdown .earn-card')).map(card=>[
     card.querySelector('.x')?.textContent?.trim()||'',
@@ -1225,91 +1232,162 @@ function buildResultsPdfDefinition(){
   ]);
 
   const dutyRows=activeDuties.map(d=>[
-    String(d.day),
+    {text:String(d.day),style:'dutyDay'},
     d.carryIn ? '00:00*' : (d.report||'—'),
     d.monthEndCutoff ? '24:00*' : (d.release||'—'),
     plainDutyType(d),
-    hhmm(d.credit||0),
+    {text:hhmm(d.credit||0),bold:true},
     hhmm(d.night||0),
     String(d.sectors||0),
     (d.training && (d.simSessions||0)>0) ? hhmm((d.simSessions||0)*6) : '—'
   ]);
 
-  const summaryBody=[
-    [{text:'Toplam Tahmini Kazanç',style:'summaryLabel'},{text:$('totalEur')?.textContent||'—',style:'summaryValue'}],
-    [{text:'TL Karşılığı',style:'summaryLabel'},{text:$('totalTl')?.textContent||'—',style:'summaryValue'}],
-    [{text:'Duty',style:'summaryLabel'},{text:$('dutyEdit')?.value||'—',style:'summaryValue'}],
-    [{text:'Night',style:'summaryLabel'},{text:$('nightEdit')?.value||'—',style:'summaryValue'}],
-    [{text:'Ek Sektör',style:'summaryLabel'},{text:String($('sectorEdit')?.value||'0'),style:'summaryValue'}]
+  const kpis=[
+    {label:'DUTY',value:dutyValue},
+    {label:'NIGHT',value:nightValue},
+    {label:'EK SEKTÖR',value:sectorValue}
   ];
-  if(instructorYes){
-    summaryBody.push([{text:'TRI/SFI Credit',style:'summaryLabel'},{text:$('triEdit')?.value||'00:00',style:'summaryValue'}]);
-  }
+  if(instructorYes) kpis.push({label:'TRI/SFI',value:triValue});
 
-  const metaRows=[
-    ['Roster', currentRosterLabel||file.files[0]?.name||'—'],
-    ['Seniority', selectedSeniority],
-    ['SFI/TRI', instructorYes?'Yes':'No'],
-    ['Off to Duty', String(offCount)],
-    ['Eğitim günleri', trainingDays],
-    ['EUR/TL', fx],
-    ['Oluşturma', generatedAt]
+  const kpiCells=kpis.map(k=>({
+    width:'*',
+    table:{widths:['*'],body:[[
+      {stack:[
+        {text:k.label,fontSize:7.5,bold:true,color:'#71809A',characterSpacing:1.1},
+        {text:k.value,fontSize:18,bold:true,color:'#12213F',margin:[0,5,0,0]}
+      ],margin:[12,10,12,10],fillColor:'#F5F8FC'}
+    ]]},
+    layout:{hLineWidth:()=>0,vLineWidth:()=>0}
+  }));
+
+  const compensationBody=[
+    [{text:'KAZANÇ KALEMİ',style:'tableHead'},{text:'TUTAR',style:'tableHeadRight'}],
+    ...(breakdownRows.length?breakdownRows.map(([name,value])=>[
+      {text:name,style:'compLabel'},
+      {text:value,style:'compValue'}
+    ]):[[{text:'—',style:'compLabel'},{text:'—',style:'compValue'}]])
   ];
+
+  const settingsLeft=[
+    ['Seniority',selectedSeniority],
+    ['SFI/TRI',instructorYes?'Yes':'No'],
+    ['Off to Duty',String(offCount)]
+  ];
+  const settingsRight=[
+    ['EUR/TL',fx],
+    ['Eğitim günleri',trainingDays],
+    ['Oluşturma',generatedAt]
+  ];
+
+  const settingTable=(rows)=>({
+    table:{widths:[86,'*'],body:rows.map(([k,v])=>[
+      {text:k,fontSize:7.5,bold:true,color:'#76849B',margin:[0,4,0,4]},
+      {text:v,fontSize:8.5,color:'#24324A',margin:[0,4,0,4]}
+    ])},
+    layout:{
+      hLineWidth:(i,node)=> i===node.table.body.length?0:0.6,
+      hLineColor:()=> '#E8EDF5',vLineWidth:()=>0,
+      paddingLeft:()=>0,paddingRight:()=>6,paddingTop:()=>0,paddingBottom:()=>0
+    }
+  });
+
+  const emblemSvg=`<svg width="54" height="54" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+    <path d="M48 7l4 18h-8zM29 12l10 16-7 3zM67 12l-3 19-7-3zM15 26l17 10-4 6zM81 26L68 42l-4-6zM9 47l19 3-1 7zM87 47l-18 10-1-7z" fill="#9FCBFF"/>
+    <path d="M20 58c7-10 17-15 28-15s21 5 28 15H20z" fill="#FFFFFF"/>
+    <path d="M24 61h48c-4 6-12 11-24 11s-20-5-24-11z" fill="#FF8A00"/>
+    <path d="M19 73h58c-7 9-17 14-29 14S26 82 19 73z" fill="#214B9A"/>
+  </svg>`;
 
   return {
     pageSize:'A4',
-    pageMargins:[32,36,32,34],
-    info:{title:`Roster Pay - ${currentRosterLabel||'Rapor'}`,author:'Roster Pay'},
+    pageMargins:[38,40,38,38],
+    info:{title:`Roster Pay - ${rosterLabel}`,author:'Roster Pay'},
+    background:(currentPage,pageSize)=>{
+      if(currentPage===1){
+        return {canvas:[
+          {type:'rect',x:0,y:0,w:pageSize.width,h:218,color:'#101D3D'},
+          {type:'rect',x:0,y:215,w:pageSize.width,h:3,color:'#68A9F4'}
+        ]};
+      }
+      return {canvas:[{type:'rect',x:0,y:0,w:pageSize.width,h:7,color:'#101D3D'}]};
+    },
     footer:(currentPage,pageCount)=>({
-      text:`Roster Pay · V6.8 · ${currentPage}/${pageCount}`,
-      alignment:'center',fontSize:8,color:'#7b879c',margin:[0,8,0,0]
+      columns:[
+        {text:'ROSTER PAY',fontSize:7,bold:true,color:'#7D899B',characterSpacing:1},
+        {text:`V6.9  •  ${currentPage}/${pageCount}`,fontSize:7,color:'#7D899B',alignment:'right'}
+      ],margin:[38,10,38,0]
     }),
     content:[
       {columns:[
         {width:'*',stack:[
-          {text:'Roster Pay',style:'title'},
-          {text:currentRosterLabel||file.files[0]?.name||'Roster',style:'subtitle'}
+          {text:'ROSTER PAY',fontSize:9,bold:true,color:'#9FCBFF',characterSpacing:2.3},
+          {text:'Aylık Kazanç Raporu',fontSize:26,bold:true,color:'#FFFFFF',margin:[0,7,0,0]},
+          {text:rosterLabel,fontSize:12,bold:true,color:'#DCE8FA',margin:[0,6,0,0]}
         ]},
-        {width:'auto',text:'V6.8',style:'version'}
+        {width:64,stack:[{svg:emblemSvg,width:52,alignment:'right'}]}
+      ],margin:[0,0,0,22]},
+
+      {table:{widths:['*'],body:[[
+        {stack:[
+          {text:'TAHMİNİ TOPLAM KAZANÇ',fontSize:8,bold:true,color:'#6E7C93',characterSpacing:1.4},
+          {text:totalEur,fontSize:31,bold:true,color:'#102245',margin:[0,7,0,0]},
+          {text:totalTl,fontSize:15,bold:true,color:'#62718A',margin:[0,4,0,0]},
+          {text:'Roster PDF verileri ve seçili hesap ayarları üzerinden oluşturulmuştur.',fontSize:7.5,color:'#8A96A8',margin:[0,10,0,0]}
+        ],margin:[18,15,18,15],fillColor:'#FFFFFF'}
+      ]]},layout:{hLineWidth:()=>0,vLineWidth:()=>0},margin:[0,0,0,13]},
+
+      {columns:kpiCells,columnGap:8,margin:[0,0,0,17]},
+
+      {columns:[
+        {width:'57%',stack:[
+          {text:'KAZANÇ DAĞILIMI',style:'sectionLabel'},
+          {table:{headerRows:1,widths:['*',80],body:compensationBody},layout:{
+            fillColor:(row)=>row===0?'#EEF3FA':null,
+            hLineWidth:(i,node)=>i===0||i===1||i===node.table.body.length?0:0.6,
+            hLineColor:()=> '#E6EBF2',vLineWidth:()=>0,
+            paddingLeft:(i)=>i===0?10:5,paddingRight:(i)=>i===1?10:5,
+            paddingTop:()=>6,paddingBottom:()=>6
+          }}
+        ]},
+        {width:'43%',stack:[
+          {text:'ROSTER ÖZETİ',style:'sectionLabel'},
+          settingTable(settingsLeft),
+          {text:'',margin:[0,3,0,0]},
+          settingTable(settingsRight)
+        ],margin:[14,0,0,0]}
+      ],columnGap:8},
+
+      {stack:[
+        {text:'YATI ÖZETİ',style:'sectionLabel',margin:[0,16,0,6]},
+        {text:$('hotelAutoSummary')?.textContent||'—',fontSize:8.5,color:'#44536B'}
       ]},
-      {text:'Roster PDF’den hesaplanan tahmini kazanç ve görev özeti',style:'lead'},
-      {table:{widths:['45%','55%'],body:summaryBody},layout:'lightHorizontalLines',margin:[0,0,0,14]},
-      {text:'Hesap Ayarları',style:'h2'},
-      {table:{widths:['34%','66%'],body:metaRows},layout:'lightHorizontalLines',margin:[0,0,0,14]},
-      {text:'Kazanç Kalemleri',style:'h2'},
-      {table:{headerRows:1,widths:['*','auto'],body:[
-        [{text:'Kalem',style:'th'},{text:'Tutar',style:'th'}],
-        ...(breakdownRows.length?breakdownRows:[['—','—']])
-      ]},layout:'lightHorizontalLines',margin:[0,0,0,14]},
-      {text:'Yatı Özeti',style:'h2'},
-      {text:$('hotelAutoSummary')?.textContent||'—',style:'body',margin:[0,0,0,14]},
-      {text:'Görevler',style:'h2'},
-      {table:{headerRows:1,widths:[24,36,36,62,42,42,32,44],body:[
-        ['Gün','Report','Release','Tip','Duty','Night','Sektör','SIM Eğt.'].map(x=>({text:x,style:'th'})),
+
+      {text:'GÜNLÜK GÖREV DETAYLARI',fontSize:17,bold:true,color:'#102245',pageBreak:'before',margin:[0,0,0,3]},
+      {text:rosterLabel,fontSize:9,color:'#71809A',margin:[0,0,0,13]},
+      {table:{headerRows:1,dontBreakRows:true,widths:[26,42,42,'*',44,44,34,52],body:[
+        ['Gün','Report','Release','Tip','Duty','Night','Sektör','TRI/SFI'].map(x=>({text:x,style:'dutyHead'})),
         ...dutyRows
       ]},layout:{
-        fillColor:(rowIndex)=>rowIndex===0?'#eaf2ff':(rowIndex%2===0?'#f8fbff':null),
-        hLineColor:()=> '#d9e2f0', vLineColor:()=> '#d9e2f0',
-        paddingLeft:()=>4,paddingRight:()=>4,paddingTop:()=>4,paddingBottom:()=>4
+        fillColor:(rowIndex)=> rowIndex===0?'#102245':(rowIndex%2===0?'#F5F8FC':null),
+        hLineWidth:(i,node)=>i===0||i===1||i===node.table.body.length?0:0.6,
+        hLineColor:()=> '#E2E8F0',vLineWidth:()=>0,
+        paddingLeft:()=>5,paddingRight:()=>5,paddingTop:()=>6,paddingBottom:()=>6
       }},
-      {text:'* 00:00 önceki aydan devreden görevi, 24:00 ay sonu cutoff uygulamasını gösterir.',style:'note',margin:[0,10,0,0]}
+      {text:'* 00:00: önceki aydan devreden görev  •  24:00: ay sonu cutoff. Ay sonu cutoff için post-flight eklenmez.',style:'note',margin:[0,11,0,0]}
     ],
-    defaultStyle:{font:'Roboto',fontSize:9,color:'#182235'},
+    defaultStyle:{font:'Roboto',fontSize:8.5,color:'#24324A'},
     styles:{
-      title:{fontSize:24,bold:true,color:'#153a73'},
-      subtitle:{fontSize:12,bold:true,color:'#60708b',margin:[0,3,0,0]},
-      version:{fontSize:10,bold:true,color:'#355491',background:'#edf3ff',margin:[8,4,0,0]},
-      lead:{fontSize:10,color:'#60708b',margin:[0,10,0,16]},
-      h2:{fontSize:13,bold:true,color:'#153a73',margin:[0,8,0,7]},
-      th:{bold:true,color:'#355491',fontSize:8},
-      body:{fontSize:9,color:'#40506b'},
-      note:{fontSize:7.5,color:'#7b879c'},
-      summaryLabel:{bold:true,color:'#60708b',fontSize:9},
-      summaryValue:{bold:true,color:'#0f172a',fontSize:10,alignment:'right'}
+      sectionLabel:{fontSize:8,bold:true,color:'#65748D',characterSpacing:1.25,margin:[0,0,0,7]},
+      tableHead:{fontSize:7.5,bold:true,color:'#53637B',characterSpacing:.7,margin:[4,2,0,2]},
+      tableHeadRight:{fontSize:7.5,bold:true,color:'#53637B',characterSpacing:.7,alignment:'right',margin:[0,2,4,2]},
+      compLabel:{fontSize:8.5,color:'#394860',margin:[4,1,0,1]},
+      compValue:{fontSize:8.5,bold:true,color:'#142443',alignment:'right',margin:[0,1,4,1]},
+      dutyHead:{fontSize:7,bold:true,color:'#FFFFFF',alignment:'left'},
+      dutyDay:{bold:true,color:'#102245'},
+      note:{fontSize:7,color:'#7A879A'}
     }
   };
 }
-
 async function exportResultsPdf(){
   const exportBtn=$('pdfExportBtn');
   if(!activeDuties.length){ $('status').textContent='Önce roster PDF’yi okuyun.'; return; }
@@ -1319,7 +1397,7 @@ async function exportResultsPdf(){
   try{
     const docDefinition=buildResultsPdfDefinition();
     const safeLabel=(currentRosterLabel||'Roster').replace(/[^0-9A-Za-zÇĞİÖŞÜçğıöşü_-]+/g,'_');
-    const filename=`Roster_Pay_${safeLabel}_V6.8.pdf`;
+    const filename=`Roster_Pay_${safeLabel}_V6.9.pdf`;
     window.pdfMake.createPdf(docDefinition).getBlob(blob=>{
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a');
@@ -1336,7 +1414,7 @@ async function exportResultsPdf(){
 
 async function hardRefreshLatest(){
   const rbtn=$('refreshBtn');
-  if(rbtn){ rbtn.disabled=true; rbtn.textContent='Yenileniyor…'; }
+  if(rbtn){ rbtn.disabled=true; rbtn.textContent='Refreshing…'; }
   try{
     if('serviceWorker' in navigator){
       const regs=await navigator.serviceWorker.getRegistrations();
@@ -1365,7 +1443,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V6.8 ACTIVE · month carry-in/out tested · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI/SFI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V6.9 ACTIVE · month carry-in/out tested · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI/SFI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
