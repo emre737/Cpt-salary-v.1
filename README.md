@@ -1,18 +1,23 @@
-# V6.7 — Month Carry-In / Carry-Out (Tested)
+# Roster Pay Premium V6.8
 
-Month-end:
-- Last-day duty crossing into next month is cut at 24:00.
-- No post-flight is added to the old month.
+V6.7 hesaplama motoru korunarak arayüz ve raporlama özellikleri eklendi.
 
-Next-month carry-in:
-- If day 1 starts with XQ/DH/SB/SIM continuation and Release but no Report,
-  the new month creates a synthetic 00:00 carry-in duty.
-- Flight/DH/SIM carry-in gets +00:30 post-flight at its real Release.
-- Night is calculated normally in the new month.
-- Standby carry-in remains 25% and gets no Night.
+## Yeni özellikler
+- Off to Duty altındaki `Her duty için +330 €` açıklaması kaldırıldı.
+- `Instructor` başlığı `SFI/TRI` olarak değiştirildi.
+- TRI ile ilgili görünür alanlar `TRI/SFI` olarak güncellendi.
+- Roster PDF alanına belirgin `PDF dosyasını lokal zamanlı olarak indirip yükleyin.` uyarısı eklendi.
+- Sonuç kartına `PDF Raporunu İndir` butonu eklendi. Rapor toplam kazanç, Duty, Night, TRI/SFI, kazanç kalemleri, yatı özeti ve gün gün görev tablosunu içerir.
+- Üste `Yenile` butonu eklendi. Service worker/cache temizlenip cache-busting query ile GitHub Pages'in en güncel sürümü tekrar yüklenir.
 
-User example:
-- Aug 31: 19:50 -> 24:00 = 04:10 Duty, no post-flight.
-- Sep 1: 00:00 -> 01:55 +00:30 = 02:25 Duty, Night 01:25.
-
-Regression tests PASS.
+## Testler
+- July 2026 regression: 145:18 Duty / 20:33 Night - PASS
+- August 2026 regression: 137:33 Duty / 11:13 Night - PASS
+- September baseline regression: 111:03 Duty / 09:05 Night - PASS
+- Yeni yüklenen September roster: 115:37 Duty / 08:55 Night - PASS
+- Çağlar roster: 112:22 Duty / 21:46 Night - PASS
+- Month carry-in/out regression - PASS
+- Month-end cutoff regression - PASS
+- PDF report definition/download wiring - PASS
+- Hard refresh cache-buster wiring - PASS
+- JavaScript syntax check - PASS
