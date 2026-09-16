@@ -1,14 +1,17 @@
-# Roster Pay Premium V6.9.1 — Version Label Fix
+# Roster Pay Premium V6.9.2 — Fresh PDF Verification
 
-Changes:
-- Visible version label corrected from accidental `V6.9.1.1` to `V6.9.1`.
-- Version is now controlled from one JavaScript constant: `APP_VERSION = '6.9.1'`.
-- Header badge, footer, PDF footer, exported PDF filename and status text all use the same source.
-- Calculation/parser logic is unchanged from the tested V6.9.1 overnight-standby hotfix.
+Same-filename iPhone/Safari hardening:
+- File input is cleared before every picker open so selecting the same filename fires a new change event.
+- The selected PDF bytes are read immediately and frozen in memory.
+- Parsing uses the frozen byte snapshot, not a later live File reference.
+- Old results/state are cleared as soon as a new PDF selection starts.
+- Filename, size, local last-modified time, and a content-based SHA-256 PDF ID are shown.
+- PDF report includes source PDF filename and PDF ID.
 
-Regression checks:
-- JavaScript syntax: PASS
-- Sep 15 overnight standby: 21:00→05:00 = 02:00 duty
-- Sep 16 fresh duty: 05:00→10:00 +00:30 = 05:30 duty, Night 01:00, 2 sectors
-- Aug 30 same-day activated standby remains 11:50, 1 sector
-- Sep 22/23 overnight flight + separate standby remain correct
+Tests:
+- Same filename + different bytes => different PDF IDs.
+- Latest uploaded September roster:
+  - Sep 15 STBY 21:00→05:00 = 02:00
+  - Sep 16 Duty 05:00→10:00 + post-flight = 05:30, Night 01:00, 2 sectors
+  - Sep 22/23 overnight regressions unchanged
+- JS syntax check PASS.

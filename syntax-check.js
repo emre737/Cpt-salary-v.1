@@ -1,10 +1,13 @@
 
-const APP_VERSION = '6.9.1';
+const APP_VERSION = '6.9.2';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
 let pdfjs = null, activeDuties = [], activeCells = [];
 let currentRosterLabel = '', currentRosterYear = null, currentRosterMonth = null;
+let selectedPdfBuffer = null;
+let selectedPdfFile = null;
+let currentPdfMeta = null;
 
 function applyVersionLabels(){
   const pill=$('versionPill');
@@ -18,9 +21,110 @@ const palette = {
   base:'#6ea8fe', duty:'#74f0d6', night:'#9b8cff', tri:'#f5c56d', sector:'#ff8fb1', lay:'#d1d9ea', off:'#f59e0b'
 };
 
-file.addEventListener('change', ()=>{
-  btn.disabled = !file.files.length;
-  $('status').textContent = file.files.length ? 'PDF hazır. “PDF’yi oku”ya bas.' : 'PDF seçince okuma aktif olacak.';
+function formatBytes(bytes){
+  const n=Number(bytes)||0;
+  if(n<1024) return `${n} B`;
+  if(n<1024*1024) return `${(n/1024).toFixed(1)} KB`;
+  return `${(n/(1024*1024)).toFixed(2)} MB`;
+}
+
+function localFileTime(ms){
+  if(!ms) return '—';
+  try{
+    return new Intl.DateTimeFormat('tr-TR',{
+      day:'2-digit',month:'2-digit',year:'numeric',
+      hour:'2-digit',minute:'2-digit',second:'2-digit'
+    }).format(new Date(ms));
+  }catch(e){ return new Date(ms).toLocaleString(); }
+}
+
+async function pdfFingerprint(buffer){
+  const bytes=buffer instanceof ArrayBuffer ? buffer : buffer.buffer;
+  if(globalThis.crypto?.subtle){
+    const digest=await crypto.subtle.digest('SHA-256',bytes.slice(0));
+    return Array.from(new Uint8Array(digest)).slice(0,8)
+      .map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+  }
+  // Fallback for older browsers: content-based FNV-1a style checksum.
+  const u=new Uint8Array(bytes);
+  let h=2166136261>>>0;
+  for(let i=0;i<u.length;i++){ h^=u[i]; h=Math.imul(h,16777619)>>>0; }
+  return h.toString(16).padStart(8,'0').toUpperCase();
+}
+
+function renderPdfMeta(){
+  const card=$('pdfMetaCard');
+  if(!card) return;
+  if(!currentPdfMeta){
+    card.classList.add('hidden');
+    return;
+  }
+  $('pdfMetaName').textContent=currentPdfMeta.name;
+  $('pdfMetaSize').textContent=formatBytes(currentPdfMeta.size);
+  $('pdfMetaModified').textContent=localFileTime(currentPdfMeta.lastModified);
+  $('pdfMetaId').textContent=currentPdfMeta.id;
+  card.classList.remove('hidden');
+}
+
+function clearLoadedRosterState(){
+  activeDuties=[];
+  activeCells=[];
+  currentRosterLabel='';
+  currentRosterYear=null;
+  currentRosterMonth=null;
+  const results=$('results');
+  if(results) results.style.display='none';
+}
+
+function resetPdfSelection(){
+  selectedPdfBuffer=null;
+  selectedPdfFile=null;
+  currentPdfMeta=null;
+  clearLoadedRosterState();
+  renderPdfMeta();
+  btn.disabled=true;
+}
+
+// Crucial for iPhone/Safari: clear the previous input value BEFORE the picker opens.
+// Selecting a newly downloaded PDF with the SAME filename must still fire `change`.
+file.addEventListener('click', ()=>{
+  file.value='';
+  resetPdfSelection();
+  $('status').textContent='Yeni PDF seçimi bekleniyor…';
+});
+
+file.addEventListener('change', async ()=>{
+  clearLoadedRosterState();
+  const f=file.files?.[0];
+  if(!f){
+    resetPdfSelection();
+    $('status').textContent='PDF seçince okuma aktif olacak.';
+    return;
+  }
+
+  btn.disabled=true;
+  $('status').textContent='Yeni PDF içeriği doğrulanıyor…';
+
+  try{
+    // Read and freeze the bytes NOW. Parsing later uses these exact bytes,
+    // not a stale File reference or filename-based cache.
+    const buf=await f.arrayBuffer();
+    selectedPdfBuffer=buf.slice(0);
+    selectedPdfFile=f;
+    const id=await pdfFingerprint(selectedPdfBuffer);
+    currentPdfMeta={
+      name:f.name||'Roster.pdf',
+      size:f.size||selectedPdfBuffer.byteLength,
+      lastModified:f.lastModified||0,
+      id
+    };
+    renderPdfMeta();
+    btn.disabled=false;
+    $('status').textContent=`Yeni PDF hazır · PDF ID ${id} · “PDF’yi oku”ya bas.`;
+  }catch(e){
+    resetPdfSelection();
+    $('status').textContent='PDF seçilemedi: '+e.message;
+  }
 });
 
 const pad=n=>String(n).padStart(2,'0');
@@ -306,7 +410,7 @@ function pair(cells){
   return out;
 }
 
-async function extractPdf(f){
+async function extractPdf(f, frozenBuffer=null){
   if(!pdfjs){
     $('status').textContent='PDF okuyucu hazırlanıyor…';
     pdfjs = window.pdfjsLib;
@@ -314,7 +418,9 @@ async function extractPdf(f){
     pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 
-  const data=new Uint8Array(await f.arrayBuffer());
+  // Always parse a private copy so PDF.js cannot detach our saved snapshot.
+  const raw=frozenBuffer ? frozenBuffer.slice(0) : await f.arrayBuffer();
+  const data=new Uint8Array(raw);
   const doc=await pdfjs.getDocument({data}).promise;
   const cells=[];
   let allText='';
@@ -404,7 +510,7 @@ async function extractPdf(f){
     const daysInMonth=new Date(year,month+1,0).getDate();
     return cells.slice(first, first+daysInMonth);
   }
-  currentRosterLabel=(file.files[0]?.name||'Roster').replace(/\.pdf$/i,'');
+  currentRosterLabel=(currentPdfMeta?.name||selectedPdfFile?.name||'Roster').replace(/\.pdf$/i,'');
   return cells.slice(first);
 }
 function renderType(d){
@@ -794,7 +900,9 @@ function buildResultsPdfDefinition(){
   const offCount=Math.max(0,Math.floor(Number($('offToDutyCount')?.value)||0));
   const trainingDays=($('trainingDays')?.value||'').trim()||'—';
   const fx=($('fx')?.value||'—').toString();
-  const rosterLabel=currentRosterLabel||file.files[0]?.name||'Roster';
+  const rosterLabel=currentRosterLabel||currentPdfMeta?.name||selectedPdfFile?.name||'Roster';
+  const sourcePdfName=currentPdfMeta?.name||selectedPdfFile?.name||'—';
+  const sourcePdfId=currentPdfMeta?.id||'—';
   const totalEur=$('totalEur')?.textContent||'—';
   const totalTl=$('totalTl')?.textContent||'—';
   const dutyValue=$('dutyEdit')?.value||'—';
@@ -852,6 +960,8 @@ function buildResultsPdfDefinition(){
   const settingsRight=[
     ['EUR/TL',fx],
     ['Eğitim günleri',trainingDays],
+    ['PDF ID',sourcePdfId],
+    ['Kaynak PDF',sourcePdfName],
     ['Oluşturma',generatedAt]
   ];
 
@@ -1010,20 +1120,21 @@ $('pdfExportBtn')?.addEventListener('click',exportResultsPdf);
 $('refreshBtn')?.addEventListener('click',hardRefreshLatest);
 
 btn.addEventListener('click', async ()=>{
-  if(!file.files[0]) return;
+  if(!selectedPdfFile || !selectedPdfBuffer) return;
   try{
     btn.disabled=true;
-    $('status').textContent='PDF okunuyor…';
-    activeCells = await extractPdf(file.files[0]);
+    const sourceId=currentPdfMeta?.id||'—';
+    $('status').textContent=`PDF okunuyor · ID ${sourceId}…`;
+    activeCells = await extractPdf(selectedPdfFile,selectedPdfBuffer);
     activeDuties = pair(activeCells.map(c=>parseCell(c.day,c.lines)));
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent=APP_VERSION_LABEL+' ACTIVE · month carry-in/out tested · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI/SFI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent=APP_VERSION_LABEL+' ACTIVE · PDF ID '+sourceId+' · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI/SFI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
-    btn.disabled=false;
+    btn.disabled=!(selectedPdfFile&&selectedPdfBuffer);
   }
 });
 
