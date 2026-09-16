@@ -1,19 +1,14 @@
-# Roster Pay Premium V6.9.1 — Overnight Standby Split Hotfix
+# Roster Pay Premium V6.9.1 — Version Label Fix
 
-Tested against the actual uploaded September 2026 roster.
+Changes:
+- Visible version label corrected from accidental `V6.9.1.1` to `V6.9.1`.
+- Version is now controlled from one JavaScript constant: `APP_VERSION = '6.9.1'`.
+- Header badge, footer, PDF footer, exported PDF filename and status text all use the same source.
+- Calculation/parser logic is unchanged from the tested V6.9.1 overnight-standby hotfix.
 
-Fix:
-- Same-day standby activation remains combined.
-- If standby starts on one calendar day and activation Report occurs after midnight
-  on the next day, the roster is split:
-  - previous day = standby-only
-  - current day = fresh normal duty from activation Report to final Release
-
-Actual September 15/16:
-- Sep 15: 21:00 → 05:00 STBY = 02:00 duty, Night 00:00, 0 sectors
-- Sep 16: 05:00 → 10:00 Duty +00:30 = 05:30 duty, Night 01:00, 2 sectors
-
-Regression PASS:
-- Aug 30 same-day activated standby remains combined: 11:50 duty, 1 sector
-- Sep 22 overnight flight remains 05:25, 2 sectors
-- Sep 23 separate standby remains 02:00, 0 sectors
+Regression checks:
+- JavaScript syntax: PASS
+- Sep 15 overnight standby: 21:00→05:00 = 02:00 duty
+- Sep 16 fresh duty: 05:00→10:00 +00:30 = 05:30 duty, Night 01:00, 2 sectors
+- Aug 30 same-day activated standby remains 11:50, 1 sector
+- Sep 22/23 overnight flight + separate standby remain correct

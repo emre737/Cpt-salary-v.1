@@ -1,8 +1,18 @@
 
+const APP_VERSION = '6.9.1';
+const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
 let pdfjs = null, activeDuties = [], activeCells = [];
 let currentRosterLabel = '', currentRosterYear = null, currentRosterMonth = null;
+
+function applyVersionLabels(){
+  const pill=$('versionPill');
+  const foot=$('versionFoot');
+  if(pill) pill.textContent=`${APP_VERSION_LABEL} ACTIVE`;
+  if(foot) foot.textContent=`GitHub Pages / PWA beta · premium arayüz · ${APP_VERSION_LABEL} ACTIVE`;
+}
+applyVersionLabels();
 
 const palette = {
   base:'#6ea8fe', duty:'#74f0d6', night:'#9b8cff', tri:'#f5c56d', sector:'#ff8fb1', lay:'#d1d9ea', off:'#f59e0b'
@@ -880,7 +890,7 @@ function buildResultsPdfDefinition(){
     footer:(currentPage,pageCount)=>({
       columns:[
         {text:'ROSTER PAY',fontSize:7,bold:true,color:'#7D899B',characterSpacing:1},
-        {text:`V6.9.1  •  ${currentPage}/${pageCount}`,fontSize:7,color:'#7D899B',alignment:'right'}
+        {text:`${APP_VERSION_LABEL}  •  ${currentPage}/${pageCount}`,fontSize:7,color:'#7D899B',alignment:'right'}
       ],margin:[38,10,38,0]
     }),
     content:[
@@ -963,7 +973,7 @@ async function exportResultsPdf(){
   try{
     const docDefinition=buildResultsPdfDefinition();
     const safeLabel=(currentRosterLabel||'Roster').replace(/[^0-9A-Za-zÇĞİÖŞÜçğıöşü_-]+/g,'_');
-    const filename=`Roster_Pay_${safeLabel}_V6.9.1.pdf`;
+    const filename=`Roster_Pay_${safeLabel}_${APP_VERSION_LABEL}.pdf`;
     window.pdfMake.createPdf(docDefinition).getBlob(blob=>{
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a');
@@ -1009,7 +1019,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V6.9.1.1 ACTIVE · month carry-in/out tested · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI/SFI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent=APP_VERSION_LABEL+' ACTIVE · month carry-in/out tested · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI/SFI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
