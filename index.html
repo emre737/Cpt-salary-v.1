@@ -250,7 +250,7 @@
     <section class="hero">
       <div class="hero-top">
         <div class="hero-copy">
-          <div class="pill">V6.9 ACTIVE</div>
+          <div class="pill">V6.9.1.1 ACTIVE</div>
           <h1>Roster Pay</h1>
           <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
         </div>
@@ -441,7 +441,7 @@
       </section>
     </div>
 
-    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V6.9 ACTIVE</div>
+    <div class="foot">GitHub Pages / PWA beta · premium arayüz · V6.9.1.1 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -671,7 +671,21 @@ function pair(cells){
         // If standby is activated exactly when the standby window ends, keep the
         // original duty open. This Report marks the start of 100% active duty.
         if(open && open.standby && open.standbyEnd && e.time===open.standbyEnd){
-          open.activationStart=e.time;
+          // Same-day standby activation stays combined (e.g. Aug 30).
+          if(parsed.day===open.day){
+            open.activationStart=e.time;
+            pendingActivationRelease=e.time;
+            if(e.raw) open.lines.push(e.raw);
+            continue;
+          }
+
+          // If standby started on the previous calendar day and the activation
+          // Report is after midnight, split into two roster duties:
+          // previous day = standby-only, current day = fresh normal duty.
+          out.push(finishDuty(open,e.time));
+          open=startDuty(parsed.day,e.time);
+          open.splitFromOvernightStandby=true;
+          open.codes.push(...(parsed.codes||[]));
           pendingActivationRelease=e.time;
           if(e.raw) open.lines.push(e.raw);
           continue;
@@ -718,6 +732,7 @@ function pair(cells){
         if(open){
           out.push(finishDuty(open,e.time));
           open=null;
+          pendingActivationRelease='';
         }
         continue;
       }
@@ -1033,7 +1048,7 @@ function recalc(){
     d.monthEndCutoff=monthEndCutoff;
     d.effectiveRelease=effectiveRelease;
 
-    // DUTY RULES V6.9 (event-based / CAE-aligned)
+    // DUTY RULES V6.9.1 (event-based / CAE-aligned)
     // Flight / DH / SIM: FIRST Report -> FINAL Release + 00:30 post-flight.
     // DH + operating flight is one continuous duty whether DH is before or after the flight.
     // The +00:30 is added ONCE at the end of that full duty.
@@ -1314,7 +1329,7 @@ function buildResultsPdfDefinition(){
     footer:(currentPage,pageCount)=>({
       columns:[
         {text:'ROSTER PAY',fontSize:7,bold:true,color:'#7D899B',characterSpacing:1},
-        {text:`V6.9  •  ${currentPage}/${pageCount}`,fontSize:7,color:'#7D899B',alignment:'right'}
+        {text:`V6.9.1  •  ${currentPage}/${pageCount}`,fontSize:7,color:'#7D899B',alignment:'right'}
       ],margin:[38,10,38,0]
     }),
     content:[
@@ -1397,7 +1412,7 @@ async function exportResultsPdf(){
   try{
     const docDefinition=buildResultsPdfDefinition();
     const safeLabel=(currentRosterLabel||'Roster').replace(/[^0-9A-Za-zÇĞİÖŞÜçğıöşü_-]+/g,'_');
-    const filename=`Roster_Pay_${safeLabel}_V6.9.pdf`;
+    const filename=`Roster_Pay_${safeLabel}_V6.9.1.pdf`;
     window.pdfMake.createPdf(docDefinition).getBlob(blob=>{
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a');
@@ -1443,7 +1458,7 @@ btn.addEventListener('click', async ()=>{
     if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
     $('results').style.display='block';
     recalc();
-    $('status').textContent='V6.9 ACTIVE · month carry-in/out tested · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI/SFI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent='V6.9.1.1 ACTIVE · month carry-in/out tested · PDF okundu · Görev '+activeDuties.length+' · SIM eğitim credit '+hhmm(activeDuties.reduce((s,d)=>s+((d.training&&d.simSessions)?d.simSessions*6:0),0))+' · TRI/SFI toplam '+$('triEdit').value+' · Yatı '+$('hotelAutoSummary').textContent;
   }catch(e){
     $('status').textContent='PDF okunamadı: '+e.message;
   }finally{
