@@ -1,21 +1,21 @@
-# Roster Pay Premium V6.9.6 - SFI Manual Adjustment Cleanup
+# Roster Pay Premium V6.9.6 — RSV Standby
 
-Changes
-- Removed the separate **SFI özel credit** input from the interface.
-- Removed the day-based SFI override parser/calculation path (for example `24=03:30`).
-- Exceptional SFI/TRI totals are now adjusted only from **Manuel kontrol → TRI/SFI toplam credit**.
-- Normal SFI/TRI automatic calculation is unchanged:
-  - recognized SIM aliases remain 06:00 per session;
-  - existing flight-training credit behavior remains unchanged.
-- Duty/Night parser and Duty calculation are unchanged.
-- Existing SFI SIM aliases remain supported:
-  - BOEING-...
-  - GOZEN with optional A/B/C/D
-  - GOZENAYT with optional A/B/C/D
-  - AYTGOZEN with optional A/B/C/D
-  - SXS-FTD / SXSFTD / SXFTD with optional A/B/C/D
+Changes:
+- RSV0 / RSV1 / RSV2 / RSV3 / RSV4 are parsed exactly like STBY for Duty credit.
+- Standalone RSV is credited at 25%.
+- If RSV is activated into an operating duty, the existing activated-standby logic is reused.
+- SFI SIM alias/override logic from V6.9.5 is unchanged.
 
-Tests
-- JavaScript syntax check PASS.
-- No remaining `sfiCreditOverrides`, `sfiOverrideField`, or `parseSfiCreditOverrides` references.
-- Manual `triEdit` field remains present and continues to feed pay calculation.
+Latest uploaded roster test (schedule-2026-9(8).pdf):
+- Sep 29: Report 07:00, RSV3 07:00–17:00, Release 17:00.
+- Correct Duty credit: 02:30.
+- Night: 00:00.
+- Sectors: 0.
+- All non-RSV duties matched the previous parser exactly.
+
+Regression tests:
+- JavaScript syntax PASS.
+- Latest roster Sep 29 RSV3 PASS.
+- RSV0–RSV4 standalone 25% PASS.
+- Same-day activated RSV PASS.
+- SFI GOZENC + 24=03:30 override regression PASS.
