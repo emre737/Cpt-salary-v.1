@@ -335,6 +335,12 @@
     <input id="trainingDays" type="text" placeholder="Örn: 1,2,6,7,8,23,24" />
   </div>
 
+  <div class="friendly-field" id="sfiOverrideField">
+    <label for="sfiCreditOverrides">SFI özel credit</label>
+    <input id="sfiCreditOverrides" type="text" placeholder="Örn: 24=03:30" />
+    <div class="field-help">Sadece istisna SIM günleri için kullanılır. Boş bırakılırsa normal credit uygulanır.</div>
+  </div>
+
   <div class="friendly-field">
     <label for="fx">EUR/TL kuru</label>
     <input id="fx" type="text" inputmode="decimal" value="63.75" />
@@ -439,7 +445,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
 <script>
-const APP_VERSION = '6.9.4';
+const APP_VERSION = '6.9.5';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
@@ -1152,8 +1158,63 @@ function applyLayovers(cells){
   return stays;
 }
 
+
+// SFI extra-credit SIM aliases.
+// IMPORTANT: these aliases do NOT change the duty parser or Duty/Night calculation.
+// Duty remains based on the existing Report -> final Release logic.
+function normalizeSfiSimText(value){
+  return String(value||'')
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'');
+}
+
+function detectSfiSimSessions(lines=[]){
+  const found=[];
+  const seen=new Set();
+
+  // Longest/specific patterns first so e.g. GOZENAYTC is not shortened to GOZENA.
+  // SXS?-?FTD also safely accepts SXS-FTD, SXSFTD and SXFTD roster variants.
+  const rx=/(BOEING-[A-Z0-9]+|GOZENAYT[A-D]?|AYTGOZEN[A-D]?|SXS?-?FTD[A-D]?|GOZEN[A-D]?)/i;
+
+  for(const rawLine of (lines||[])){
+    const line=normalizeSfiSimText(rawLine);
+    const m=line.match(rx);
+    if(!m) continue;
+
+    const alias=m[1].toUpperCase();
+    const key=alias+'|'+line;
+    if(seen.has(key)) continue;
+    seen.add(key);
+    found.push({alias,raw:String(rawLine||'')});
+  }
+  return found;
+}
+
+function sfiSimSessionsForDay(day){
+  const lines=activeCells
+    .filter(c=>c.day===day)
+    .flatMap(c=>c.lines||[]);
+  return detectSfiSimSessions(lines);
+}
+
+function parseSfiCreditOverrides(value){
+  const map=new Map();
+  const parts=String(value||'').split(/[,\n;]+/);
+
+  for(const part of parts){
+    const m=part.trim().match(/^(\d{1,2})\s*=\s*(\d{1,2}):([0-5]\d)$/);
+    if(!m) continue;
+    const day=Number(m[1]);
+    if(day<1 || day>31) continue;
+    map.set(day,Number(m[2])+Number(m[3])/60);
+  }
+  return map;
+}
+
 function recalc(){
   const training=new Set($('trainingDays').value.split(',').map(x=>Number(x.trim())).filter(Boolean));
+  const sfiOverrides=parseSfiCreditOverrides($('sfiCreditOverrides')?.value||'');
   const instructorMode=($('instructorMode')?.value||'yes')==='yes';
   const lastRosterDay=activeCells.length ? Math.max(...activeCells.map(c=>c.day)) : 31;
   let duty=0, night=0, sectors=0, tri=0;
@@ -1168,12 +1229,8 @@ function recalc(){
     d.monthEndCutoff=monthEndCutoff;
     d.effectiveRelease=effectiveRelease;
 
-    // DUTY RULES V6.9.1 (event-based / CAE-aligned)
-    // Flight / DH / SIM: FIRST Report -> FINAL Release + 00:30 post-flight.
-    // DH + operating flight is one continuous duty whether DH is before or after the flight.
-    // The +00:30 is added ONCE at the end of that full duty.
-    // Standby-only: %25.
-    // Activated standby: standby section %25 + active section %100 + 00:30 post-flight.
+    // DUTY LOGIC IS UNCHANGED.
+    // The new GOZEN / AYTGOZEN / SXS-FTD aliases are NOT used here.
     if(d.standby && hasActiveDuty && (d.activationStart||d.standbyEnd)){
       const activation=d.activationStart||d.standbyEnd;
       const standbyPart=dur(d.report,activation)*0.25;
@@ -1193,9 +1250,7 @@ function recalc(){
       d.standbyCredit=0;
       d.activeCredit=base;
     }
-    // Night pay is 01:00–06:00. Post-flight duty is duty time too.
-    // Use the local value immediately so the FIRST calculation after PDF load
-    // already includes post-flight Night; do not depend on a previous recalc().
+
     d.postFlightDuty=postFlightDuty;
     const nightEnd = postFlightDuty ? addHoursToHHMM(effectiveRelease,postFlightDuty) : effectiveRelease;
     d.night = d.activatedStandby
@@ -1203,18 +1258,41 @@ function recalc(){
       : (d.standby ? 0 : overlapNight(d.report,nightEnd));
     d.extra=Math.max(0,d.sectors-2);
     d.training=training.has(d.day);
+    d.sfiCredit=0;
 
     duty += d.credit;
     night += d.night;
     sectors += d.extra;
-
-    if(instructorMode && d.training){
-      // SIM training: +6:00 TRI instructor credit per SIM session.
-      // This affects TRI pay only. SIM duty itself stays Report -> Release.
-      if((d.simSessions||0)>0) tri += (d.simSessions||0)*6;
-      else tri += d.plannedFlight;
-    }
   });
+
+  // SFI/TRI extra credit is calculated separately from Duty.
+  // Recognized SIM aliases default to 06:00 per session.
+  // Example override "24=03:30" changes ONLY SFI credit for that day.
+  if(instructorMode){
+    for(const day of [...training].sort((a,b)=>a-b)){
+      const dutiesForDay=activeDuties.filter(d=>d.day===day);
+      const aliasSessions=sfiSimSessionsForDay(day);
+
+      // Preserve existing BOEING SIM behavior.
+      const legacySimSessions=dutiesForDay.reduce((s,d)=>s+(d.simSessions||0),0);
+      const simSessionCount=Math.max(aliasSessions.length,legacySimSessions);
+
+      let dayCredit=0;
+      if(sfiOverrides.has(day)){
+        dayCredit=sfiOverrides.get(day);
+      } else if(simSessionCount>0){
+        dayCredit=simSessionCount*6;
+      } else {
+        // Existing flight-training behavior.
+        dayCredit=dutiesForDay.reduce((s,d)=>s+(d.plannedFlight||0),0);
+      }
+
+      tri += dayCredit;
+      if(dayCredit>0 && dutiesForDay.length){
+        dutiesForDay[0].sfiCredit=dayCredit;
+      }
+    }
+  }
 
   $('dutyEdit').value=hhmm(duty);
   $('nightEdit').value=hhmm(night);
@@ -1225,7 +1303,6 @@ function recalc(){
   $('nightShow').textContent=hhmm(night);
   $('sectorShow').textContent=String(sectors);
   $('triShow').textContent=hhmm(tri);
-
 
   const stays=applyLayovers(activeCells);
   buildActivityVisuals(stays);
@@ -1253,7 +1330,7 @@ function recalc(){
       }</td>
       <td>${hhmm(d.night)}</td>
       <td>${d.sectors}</td>
-      <td class="tri-col">${(d.training && (d.simSessions||0)>0) ? hhmm((d.simSessions||0)*6) : '—'}</td>
+      <td class="tri-col">${d.sfiCredit>0 ? hhmm(d.sfiCredit) : '—'}</td>
     </tr>
   `).join('');
 
@@ -1375,7 +1452,7 @@ function buildResultsPdfDefinition(){
     {text:hhmm(d.credit||0),bold:true},
     hhmm(d.night||0),
     String(d.sectors||0),
-    (d.training && (d.simSessions||0)>0) ? hhmm((d.simSessions||0)*6) : '—'
+    d.sfiCredit>0 ? hhmm(d.sfiCredit) : '—'
   ]);
 
   const kpis=[
@@ -1622,7 +1699,7 @@ btn.addEventListener('click', async ()=>{
   }
 });
 
-['trainingDays'].forEach(id => $(id).addEventListener('input', ()=>activeDuties.length && recalc()));
+['trainingDays','sfiCreditOverrides'].forEach(id => $(id).addEventListener('input', ()=>activeDuties.length && recalc()));
 ['dutyEdit','nightEdit','sectorEdit','triEdit','domFull','domHalf','intFull','intHalf','fx'].forEach(id => $(id).addEventListener('input', calcPay));
 
 
@@ -1650,7 +1727,7 @@ if(offToDutyCountInput){
 
 function applyInstructorMode(){
   const yes=($('instructorMode')?.value||'yes')==='yes';
-  ['triKpi','triManualField'].forEach(id=>{
+  ['triKpi','triManualField','sfiOverrideField'].forEach(id=>{
     const el=$(id); if(el) el.classList.toggle('tri-hidden', !yes);
   });
   document.querySelectorAll('.tri-col').forEach(el=>el.classList.toggle('tri-hidden', !yes));

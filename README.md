@@ -1,29 +1,31 @@
-# Roster Pay Premium V6.9.4 — Privacy Dashboard
+# Roster Pay Premium V6.9.5 - SFI SIM Alias + Override
 
-## Visible UI changes
-- Selected airplane/sunset/sea logo kept in the header and Safari Add to Home Screen icon.
-- Seniority selector shows only experience ranges; base salary is no longer displayed.
-- PDF filename/size/modified time/PDF ID detail card removed from the UI. The fresh-file byte snapshot and fingerprint logic remains in the background.
-- “Ek ödeme durumu” and all visible hourly-rate / threshold explanations removed.
-- “Kazanç dağılımı” and detailed compensation-line breakdown removed.
-- Replaced with privacy-safe activity visuals: duty-type donut, roster counts, Night/Duty ratio.
-- Layover summary shows days only, not monetary amounts.
-- Calculation parameters remain in background JavaScript and continue to drive the total estimate.
+Changes
+- Duty/Night parser and Duty calculation are unchanged.
+- New aliases affect only SFI/TRI extra credit:
+  - BOEING-...
+  - GOZEN with optional A/B/C/D
+  - GOZENAYT with optional A/B/C/D
+  - AYTGOZEN with optional A/B/C/D
+  - SXS-FTD / SXSFTD / SXFTD with optional A/B/C/D
+- Added optional "SFI özel credit" field.
+  - Example: 24=03:30
+  - This changes only SFI/TRI credit for that training day.
+- Normal recognized SIM session credit remains 06:00 per session.
+- Existing flight-training credit behavior remains unchanged.
 
-## PDF redesign
-- Cleaner first page with new brand icon, total estimate, KPI cards, duty-type donut and time bars.
-- No base-salary amount, hourly rates, pay thresholds, source PDF metadata, or compensation-by-line breakdown.
-- Settings show seniority range only.
-- Page 2 keeps the detailed daily duty table.
+Latest uploaded roster test: schedule-2026-9(7).pdf
+- Sep 24 contains GOZENC 14:30-16:30 and is recognized as an SFI SIM alias.
+- Sep 24 Duty stays 07:55 -> 20:15 with the existing Duty rule = 12:50.
+- Whole-month Duty stays 138:45.
+- Whole-month Night stays 11:40.
+- If day 24 is entered as an education day:
+  - default SFI credit = 06:00
+  - with 24=03:30 = 03:30
 
-## Tests
-- JavaScript syntax PASS.
-- Latest September regression PASS:
-  - Sep 15 STBY 21:00→05:00 = 02:00
-  - Sep 16 Duty 05:00→10:00 = 05:30, Night 01:00, 2 sectors
-  - Sep 22 / Sep 23 PASS
-- Same-day activated standby synthetic regression PASS.
-- PWA icon / manifest references PASS.
-- Privacy UI static checks PASS.
-
-Note: Because GitHub Pages is client-side, calculation constants remain technically inspectable in JavaScript source; this release removes them from normal UI and PDF output, not from source code.
+Tests
+- JavaScript syntax PASS
+- V6.9.4 vs V6.9.5 exact Duty/Night output comparison on latest roster PASS
+- Actual Sep 24 GOZENC detection PASS
+- All requested alias/session suffix families PASS
+- PWA manifest recreated and included
