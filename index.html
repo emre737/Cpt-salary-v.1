@@ -374,6 +374,7 @@
           <div class="activity-stat-grid">
             <div class="activity-stat"><span>Görev</span><strong id="activityDutyCount">—</strong></div>
             <div class="activity-stat"><span>STBY</span><strong id="activityStbyCount">—</strong></div>
+            <div class="activity-stat"><span>RSV</span><strong id="activityRsvCount">—</strong></div>
             <div class="activity-stat"><span>SIM</span><strong id="activitySimCount">—</strong></div>
             <div class="activity-stat"><span>Yatı</span><strong id="activityLayoverCount">—</strong></div>
           </div>
@@ -445,7 +446,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
 <script>
-const APP_VERSION = '6.9.6';
+const APP_VERSION = '6.9.7';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
@@ -464,7 +465,7 @@ function applyVersionLabels(){
 applyVersionLabels();
 
 const palette = {
-  duty:'#2F80ED', standby:'#56B3FF', sim:'#FFA659', activated:'#74F0D6',
+  duty:'#2F80ED', standby:'#56B3FF', rsv:'#8895A7', sim:'#FFA659', activated:'#74F0D6',
   night:'#7C6DF2', tri:'#F5C56D', lay:'#D1D9EA'
 };
 
@@ -664,7 +665,7 @@ function parseCell(day, lines){
       });
     }
 
-    // SB and RSV0-4 are identical standby duty types for credit purposes.
+    // SB remains standby (%25). RSV0-4 is Reserve and carries zero Duty credit.
     const sbPos=line.search(/(?:SB(?:1|2|3|4|5|-PF)|RSV(?:0|1|2|3|4))/i);
     if(sbPos>=0){
       let ts=times(line);
@@ -672,8 +673,9 @@ function parseCell(day, lines){
         if(!/^\s*~/.test(lines[j])) break;
         ts=ts.concat(times(lines[j]));
       }
+      const isReserve=/RSV(?:0|1|2|3|4)/i.test(line);
       lineEvents.push({
-        type:'standby', times:ts, pos:sbPos, raw:line, lineIndex:i
+        type:'standby', reserve:isReserve, times:ts, pos:sbPos, raw:line, lineIndex:i
       });
     }
 
@@ -720,6 +722,7 @@ function pair(cells){
     release:'',
     carryIn,
     standby:false,
+    reserve:false,
     standbyEnd:'',
     activationStart:'',
     standbySeen:false,
@@ -745,15 +748,19 @@ function pair(cells){
     } else if(e.type==='dh'){
       d.hasDH=true;
     } else if(e.type==='standby'){
-      d.standby=true;
-      const ts=e.times||[];
-      if(ts.length>=2){
-        d.standbyEnd=ts[ts.length-1];
-      } else if(ts.length===1 && d.standbySeen){
-        // Overnight continuation of a standby line.
-        d.standbyEnd=ts[0];
+      if(e.reserve){
+        d.reserve=true;
+      } else {
+        d.standby=true;
+        const ts=e.times||[];
+        if(ts.length>=2){
+          d.standbyEnd=ts[ts.length-1];
+        } else if(ts.length===1 && d.standbySeen){
+          // Overnight continuation of a standby line.
+          d.standbyEnd=ts[0];
+        }
+        d.standbySeen=true;
       }
-      d.standbySeen=true;
     } else if(e.type==='sim'){
       d.simSessions += 1;
       const ts=e.times||[];
@@ -977,6 +984,7 @@ async function extractPdf(f, frozenBuffer=null){
 function renderType(d){
   let tag='Duty', cls='';
   if(d.carryIn){ tag='Önceki aydan'; cls=''; }
+  else if(d.reserve){ tag='RSV'; cls='stby'; }
   else if(d.activatedStandby){ tag='STBY → Duty'; cls='stby'; }
   else if(d.standby){ tag='STBY'; cls='stby'; }
   else if((d.simSessions||0)>0){ tag='SIM'; cls='sim'; }
@@ -1230,9 +1238,16 @@ function recalc(){
     d.monthEndCutoff=monthEndCutoff;
     d.effectiveRelease=effectiveRelease;
 
-    // DUTY LOGIC IS UNCHANGED.
-    // The new GOZEN / AYTGOZEN / SXS-FTD aliases are NOT used here.
-    if(d.standby && hasActiveDuty && (d.activationStart||d.standbyEnd)){
+    // Duty rules:
+    // RSV0-4 has no Duty/Night effect regardless of scheduled duration.
+    // Ordinary SB standby keeps the existing %25 and activated-standby logic.
+    // SFI SIM aliases remain completely separate from Duty.
+    if(d.reserve){
+      d.credit=0;
+      d.activatedStandby=false;
+      d.standbyCredit=0;
+      d.activeCredit=0;
+    } else if(d.standby && hasActiveDuty && (d.activationStart||d.standbyEnd)){
       const activation=d.activationStart||d.standbyEnd;
       const standbyPart=dur(d.report,activation)*0.25;
       const activePart=dur(activation,effectiveRelease);
@@ -1252,11 +1267,13 @@ function recalc(){
       d.activeCredit=base;
     }
 
-    d.postFlightDuty=postFlightDuty;
-    const nightEnd = postFlightDuty ? addHoursToHHMM(effectiveRelease,postFlightDuty) : effectiveRelease;
-    d.night = d.activatedStandby
-      ? overlapNight((d.activationStart||d.standbyEnd),nightEnd)
-      : (d.standby ? 0 : overlapNight(d.report,nightEnd));
+    d.postFlightDuty=d.reserve ? 0 : postFlightDuty;
+    const nightEnd = d.postFlightDuty ? addHoursToHHMM(effectiveRelease,d.postFlightDuty) : effectiveRelease;
+    d.night = d.reserve
+      ? 0
+      : (d.activatedStandby
+          ? overlapNight((d.activationStart||d.standbyEnd),nightEnd)
+          : (d.standby ? 0 : overlapNight(d.report,nightEnd)));
     d.extra=Math.max(0,d.sectors-2);
     d.training=training.has(d.day);
     d.sfiCredit=0;
@@ -1319,15 +1336,17 @@ function recalc(){
       <td>${d.monthEndCutoff ? '24:00*' : (d.release||'—')}</td>
       <td>${renderType(d)}</td>
       <td>${hhmm(d.credit)}${
-        d.activatedStandby
-          ? ` <span class="muted-note">(SB %25 + aktif duty +00:30)</span>`
-          : (d.monthEndCutoff
-              ? ' <span class="muted-note">(ay sonu 24:00 cutoff · post-flight yok)</span>'
-              : (d.carryIn
-                  ? ' <span class="muted-note">(önceki aydan 00:00 → Release)</span>'
-                  : (d.dhFlightComposite
-                  ? ' <span class="muted-note">(ilk Report → son Release +00:30)</span>'
-                  : (d.postFlightDuty ? ' <span class="muted-note">(+00:30 post-flight)</span>' : ''))))
+        d.reserve
+          ? ` <span class="muted-note">(Duty credit yok)</span>`
+          : (d.activatedStandby
+              ? ` <span class="muted-note">(SB %25 + aktif duty +00:30)</span>`
+              : (d.monthEndCutoff
+                  ? ' <span class="muted-note">(ay sonu 24:00 cutoff · post-flight yok)</span>'
+                  : (d.carryIn
+                      ? ' <span class="muted-note">(önceki aydan 00:00 → Release)</span>'
+                      : (d.dhFlightComposite
+                      ? ' <span class="muted-note">(ilk Report → son Release +00:30)</span>'
+                      : (d.postFlightDuty ? ' <span class="muted-note">(+00:30 post-flight)</span>' : '')))))
       }</td>
       <td>${hhmm(d.night)}</td>
       <td>${d.sectors}</td>
@@ -1342,14 +1361,16 @@ function buildActivityVisuals(stays=[]){
   const stats=[
     ['Duty',0,palette.duty],
     ['STBY',0,palette.standby],
+    ['RSV',0,palette.rsv],
     ['SIM',0,palette.sim],
     ['STBY → Duty',0,palette.activated]
   ];
 
   for(const d of activeDuties){
-    if(d.activatedStandby) stats[3][1]++;
+    if(d.reserve) stats[2][1]++;
+    else if(d.activatedStandby) stats[4][1]++;
     else if(d.standby) stats[1][1]++;
-    else if((d.simSessions||0)>0) stats[2][1]++;
+    else if((d.simSessions||0)>0) stats[3][1]++;
     else stats[0][1]++;
   }
 
@@ -1375,9 +1396,11 @@ function buildActivityVisuals(stays=[]){
   `).join('') : '<div class="muted-note">Görev bulunamadı.</div>';
 
   const standbyCount=activeDuties.filter(d=>d.standby).length;
+  const reserveCount=activeDuties.filter(d=>d.reserve).length;
   const simCount=activeDuties.reduce((s,d)=>s+(d.simSessions||0),0);
   $('activityDutyCount').textContent=String(activeDuties.length);
   $('activityStbyCount').textContent=String(standbyCount);
+  $('activityRsvCount').textContent=String(reserveCount);
   $('activitySimCount').textContent=String(simCount);
   $('activityLayoverCount').textContent=String(stays.length);
 
@@ -1424,6 +1447,7 @@ function calcPay(){
 
 function plainDutyType(d){
   if(d.carryIn) return 'Önceki aydan';
+  if(d.reserve) return 'RSV';
   if(d.activatedStandby) return 'STBY → Duty';
   if(d.standby) return 'STBY';
   if((d.simSessions||0)>0) return d.training ? 'SIM · Eğitim' : 'SIM';
@@ -1475,8 +1499,9 @@ function buildResultsPdfDefinition(){
   }));
 
   const typeStats=[
-    ['Duty',activeDuties.filter(d=>!d.standby && !(d.simSessions||0)).length,'#2F80ED'],
+    ['Duty',activeDuties.filter(d=>!d.reserve && !d.standby && !(d.simSessions||0)).length,'#2F80ED'],
     ['STBY',activeDuties.filter(d=>d.standby && !d.activatedStandby).length,'#56B3FF'],
+    ['RSV',activeDuties.filter(d=>d.reserve).length,'#8895A7'],
     ['SIM',activeDuties.filter(d=>(d.simSessions||0)>0).length,'#FFA659'],
     ['STBY → Duty',activeDuties.filter(d=>d.activatedStandby).length,'#74F0D6']
   ].filter(x=>x[1]>0);

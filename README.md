@@ -1,21 +1,23 @@
-# Roster Pay Premium V6.9.6 — RSV Standby
+# Roster Pay Premium V6.9.7 — RSV Zero Duty
 
-Changes:
-- RSV0 / RSV1 / RSV2 / RSV3 / RSV4 are parsed exactly like STBY for Duty credit.
-- Standalone RSV is credited at 25%.
-- If RSV is activated into an operating duty, the existing activated-standby logic is reused.
-- SFI SIM alias/override logic from V6.9.5 is unchanged.
+- RSV0/1/2/3/4 are now a separate `RSV` type, not STBY.
+- RSV is shown as RSV in the result table, activity summary/chart and exported PDF.
+- RSV contributes 00:00 Duty regardless of scheduled Report/Release duration.
+- RSV contributes 00:00 Night.
+- Ordinary SB standby is unchanged and still credits 25%.
+- SFI SIM alias and special-credit logic is unchanged.
 
-Latest uploaded roster test (schedule-2026-9(8).pdf):
+Latest uploaded roster (`schedule-2026-9(8).pdf`) regression:
 - Sep 29: Report 07:00, RSV3 07:00–17:00, Release 17:00.
-- Correct Duty credit: 02:30.
-- Night: 00:00.
-- Sectors: 0.
-- All non-RSV duties matched the previous parser exactly.
+- Result: RSV / Duty 00:00 / Night 00:00 / Sector 0.
+- V6.9.6 total Duty: 135:35.
+- V6.9.7 total Duty: 133:05.
+- Monthly Night unchanged.
+- Every non-RSV row matches V6.9.6.
 
-Regression tests:
+Tests:
 - JavaScript syntax PASS.
-- Latest roster Sep 29 RSV3 PASS.
-- RSV0–RSV4 standalone 25% PASS.
-- Same-day activated RSV PASS.
-- SFI GOZENC + 24=03:30 override regression PASS.
+- Latest roster PASS.
+- RSV0–RSV4 classification PASS.
+- STBY 25% regression PASS.
+- Existing SFI regression PASS.
