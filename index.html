@@ -440,7 +440,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
 <script>
-const APP_VERSION = '6.9.8';
+const APP_VERSION = '6.9.9';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
@@ -468,7 +468,7 @@ const palette = {
 const PAY_RULES = Object.freeze({
   base:[5970,6490,6720,7020,7170],
   instructorBase:378,
-  offToDuty:330,
+  offToDuty:400,
   duty:{threshold:100,normal:28.6,high:52.8},
   night:71.3,
   sector:17.9,
