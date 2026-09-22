@@ -1,23 +1,19 @@
-# Roster Pay Premium V6.9.7 — RSV Zero Duty
+# Roster Pay Premium V6.9.8 — Special SFI Credit Removed
 
-- RSV0/1/2/3/4 are now a separate `RSV` type, not STBY.
-- RSV is shown as RSV in the result table, activity summary/chart and exported PDF.
-- RSV contributes 00:00 Duty regardless of scheduled Report/Release duration.
-- RSV contributes 00:00 Night.
-- Ordinary SB standby is unchanged and still credits 25%.
-- SFI SIM alias and special-credit logic is unchanged.
-
-Latest uploaded roster (`schedule-2026-9(8).pdf`) regression:
-- Sep 29: Report 07:00, RSV3 07:00–17:00, Release 17:00.
-- Result: RSV / Duty 00:00 / Night 00:00 / Sector 0.
-- V6.9.6 total Duty: 135:35.
-- V6.9.7 total Duty: 133:05.
-- Monthly Night unchanged.
-- Every non-RSV row matches V6.9.6.
+- Removed `SFI özel credit` from the visible UI and its override logic.
+- Exceptional SFI corrections are handled only through:
+  `Manuel kontrol → TRI/SFI toplam credit`.
+- Normal recognized SIM session credit remains 06:00.
+- GOZEN / GOZENAYT / AYTGOZEN / SXS-FTD / BOEING recognition is unchanged.
+- RSV0–RSV4 remain RSV with 00:00 Duty and 00:00 Night.
+- Ordinary STBY remains 25%.
 
 Tests:
 - JavaScript syntax PASS.
-- Latest roster PASS.
-- RSV0–RSV4 classification PASS.
-- STBY 25% regression PASS.
-- Existing SFI regression PASS.
+- Special SFI field/code removed PASS.
+- Manual TRI/SFI total-credit field preserved PASS.
+- V6.9.7 → V6.9.8 exact Duty/Night regression PASS:
+  Duty 133:05, Night 11:40.
+- Sep 29 RSV3 remains 00:00 Duty / 00:00 Night PASS.
+- Sep 24 GOZENC remains recognized, normal SFI credit 06:00 PASS.
+- RSV0–RSV4 and STBY 25% synthetic regression PASS.

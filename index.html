@@ -335,12 +335,6 @@
     <input id="trainingDays" type="text" placeholder="Örn: 1,2,6,7,8,23,24" />
   </div>
 
-  <div class="friendly-field" id="sfiOverrideField">
-    <label for="sfiCreditOverrides">SFI özel credit</label>
-    <input id="sfiCreditOverrides" type="text" placeholder="Örn: 24=03:30" />
-    <div class="field-help">Sadece istisna SIM günleri için kullanılır. Boş bırakılırsa normal credit uygulanır.</div>
-  </div>
-
   <div class="friendly-field">
     <label for="fx">EUR/TL kuru</label>
     <input id="fx" type="text" inputmode="decimal" value="63.75" />
@@ -446,7 +440,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
 <script>
-const APP_VERSION = '6.9.7';
+const APP_VERSION = '6.9.8';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
@@ -1207,23 +1201,9 @@ function sfiSimSessionsForDay(day){
   return detectSfiSimSessions(lines);
 }
 
-function parseSfiCreditOverrides(value){
-  const map=new Map();
-  const parts=String(value||'').split(/[,\n;]+/);
-
-  for(const part of parts){
-    const m=part.trim().match(/^(\d{1,2})\s*=\s*(\d{1,2}):([0-5]\d)$/);
-    if(!m) continue;
-    const day=Number(m[1]);
-    if(day<1 || day>31) continue;
-    map.set(day,Number(m[2])+Number(m[3])/60);
-  }
-  return map;
-}
 
 function recalc(){
   const training=new Set($('trainingDays').value.split(',').map(x=>Number(x.trim())).filter(Boolean));
-  const sfiOverrides=parseSfiCreditOverrides($('sfiCreditOverrides')?.value||'');
   const instructorMode=($('instructorMode')?.value||'yes')==='yes';
   const lastRosterDay=activeCells.length ? Math.max(...activeCells.map(c=>c.day)) : 31;
   let duty=0, night=0, sectors=0, tri=0;
@@ -1285,7 +1265,7 @@ function recalc(){
 
   // SFI/TRI extra credit is calculated separately from Duty.
   // Recognized SIM aliases default to 06:00 per session.
-  // Example override "24=03:30" changes ONLY SFI credit for that day.
+  // Recognized SIM sessions use the normal 06:00 SFI credit.
   if(instructorMode){
     for(const day of [...training].sort((a,b)=>a-b)){
       const dutiesForDay=activeDuties.filter(d=>d.day===day);
@@ -1296,9 +1276,7 @@ function recalc(){
       const simSessionCount=Math.max(aliasSessions.length,legacySimSessions);
 
       let dayCredit=0;
-      if(sfiOverrides.has(day)){
-        dayCredit=sfiOverrides.get(day);
-      } else if(simSessionCount>0){
+      if(simSessionCount>0){
         dayCredit=simSessionCount*6;
       } else {
         // Existing flight-training behavior.
@@ -1725,7 +1703,7 @@ btn.addEventListener('click', async ()=>{
   }
 });
 
-['trainingDays','sfiCreditOverrides'].forEach(id => $(id).addEventListener('input', ()=>activeDuties.length && recalc()));
+['trainingDays'].forEach(id => $(id).addEventListener('input', ()=>activeDuties.length && recalc()));
 ['dutyEdit','nightEdit','sectorEdit','triEdit','domFull','domHalf','intFull','intHalf','fx'].forEach(id => $(id).addEventListener('input', calcPay));
 
 
@@ -1753,7 +1731,7 @@ if(offToDutyCountInput){
 
 function applyInstructorMode(){
   const yes=($('instructorMode')?.value||'yes')==='yes';
-  ['triKpi','triManualField','sfiOverrideField'].forEach(id=>{
+  ['triKpi','triManualField'].forEach(id=>{
     const el=$(id); if(el) el.classList.toggle('tri-hidden', !yes);
   });
   document.querySelectorAll('.tri-col').forEach(el=>el.classList.toggle('tri-hidden', !yes));
