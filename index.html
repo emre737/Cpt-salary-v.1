@@ -440,7 +440,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
 <script>
-const APP_VERSION = '6.9.9';
+const APP_VERSION = '6.9.11';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
@@ -673,7 +673,8 @@ function parseCell(day, lines){
       });
     }
 
-    const simPos=line.search(/BOEING-[A-Z]/i);
+    const simMatch=line.match(/BOEING-[A-Z0-9]+/i);
+    const simPos=simMatch ? line.search(/BOEING-[A-Z0-9]+/i) : -1;
     if(simPos>=0){
       let ts=times(line);
       for(let j=i+1;j<Math.min(lines.length,i+4)&&ts.length<2;j++){
@@ -681,7 +682,8 @@ function parseCell(day, lines){
         ts=ts.concat(times(lines[j]));
       }
       lineEvents.push({
-        type:'sim', times:ts, pos:simPos, raw:line, lineIndex:i
+        type:'sim', alias:simMatch[0].toUpperCase(), times:ts,
+        pos:simPos, raw:line, lineIndex:i
       });
     }
 
@@ -723,6 +725,7 @@ function pair(cells){
     hasDH:false,
     simExtra:0,
     simSessions:0,
+    simAliases:{},
     sectorRecords:{},
     sectors:0,
     plannedFlight:0,
@@ -756,9 +759,13 @@ function pair(cells){
         d.standbySeen=true;
       }
     } else if(e.type==='sim'){
-      d.simSessions += 1;
-      const ts=e.times||[];
-      if(ts.length>=2) d.simExtra += dur(ts[0],ts[ts.length-1]);
+      const alias=e.alias||String(e.raw||'SIM').toUpperCase();
+      if(!d.simAliases[alias]){
+        d.simAliases[alias]=true;
+        d.simSessions += 1;
+        const ts=e.times||[];
+        if(ts.length>=2) d.simExtra += dur(ts[0],ts[ts.length-1]);
+      }
     }
 
     if(e.raw) d.lines.push(e.raw);
@@ -780,6 +787,7 @@ function pair(cells){
 
     delete d.sectorRecords;
     delete d.standbySeen;
+    delete d.simAliases;
     return d;
   };
 
@@ -1186,6 +1194,18 @@ function detectSfiSimSessions(lines=[]){
     if(!m) continue;
 
     const alias=m[1].toUpperCase();
+
+    // If the same SIM continues after midnight, the next calendar cell may show
+    // e.g. "BOEING-E IST ~ 03:30 IST" or "GOZENAYTB ~ 03:30".
+    // A line whose first "~" appears before any time after the alias is a
+    // continuation, not a new SIM session. This rule applies to every SFI alias.
+    const tail=line.slice((m.index||0)+m[0].length);
+    const tildePos=tail.indexOf('~');
+    if(tildePos>=0){
+      const beforeTilde=tail.slice(0,tildePos);
+      if(!/\b\d{1,2}:\d{2}\b/.test(beforeTilde)) continue;
+    }
+
     const key=alias+'|'+line;
     if(seen.has(key)) continue;
     seen.add(key);
