@@ -343,7 +343,7 @@
 
 
       </div>
-      <button id="parseBtn" class="btn" disabled style="margin-top:14px">PDF’yi oku</button>
+      <button id="parseBtn" class="btn" disabled style="margin-top:14px">Ödemeyi Hesapla</button>
       <div id="status" class="status">PDF seçince okuma aktif olacak.</div>
     </section>
 
@@ -440,7 +440,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
 <script>
-const APP_VERSION = '6.9.11';
+const APP_VERSION = '6.9.12';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
@@ -575,7 +575,7 @@ file.addEventListener('change', async ()=>{
     };
     renderPdfMeta();
     btn.disabled=false;
-    $('status').textContent='Yeni PDF hazır · “PDF’yi oku”ya bas.';
+    $('status').textContent='Yeni PDF hazır · “Ödemeyi Hesapla”ya bas.';
   }catch(e){
     resetPdfSelection();
     $('status').textContent='PDF seçilemedi: '+e.message;
@@ -1661,7 +1661,7 @@ function buildResultsPdfDefinition(){
 }
 async function exportResultsPdf(){
   const exportBtn=$('pdfExportBtn');
-  if(!activeDuties.length){ $('status').textContent='Önce roster PDF’yi okuyun.'; return; }
+  if(!activeDuties.length){ $('status').textContent='Önce roster Ödemeyi Hesaplayun.'; return; }
   if(!window.pdfMake){ $('status').textContent='PDF rapor motoru yüklenemedi. İnternet bağlantısını kontrol edin.'; return; }
   const oldText=exportBtn?.textContent;
   if(exportBtn){ exportBtn.disabled=true; exportBtn.textContent='PDF hazırlanıyor…'; }
