@@ -296,6 +296,15 @@
           
 <div class="friendly-form">
   <div class="friendly-field">
+    <label>Pozisyon</label>
+    <div class="segmented" id="roleToggle">
+      <button type="button" class="seg-btn active" data-value="captain">Captain</button>
+      <button type="button" class="seg-btn" data-value="firstOfficer">First Officer</button>
+    </div>
+    <input id="roleMode" type="hidden" value="captain" />
+  </div>
+
+  <div class="friendly-field">
     <label for="senioritySelect">Seniority</label>
     <select id="senioritySelect">
       <option value="0">0–3 yıl</option>
@@ -312,7 +321,7 @@
   </div>
 
 
-  <div class="friendly-field">
+  <div class="friendly-field" id="instructorField">
     <label>SFI/TRI</label>
     <div class="segmented" id="instructorToggle">
       <button type="button" class="seg-btn active" data-value="yes">Yes</button>
@@ -330,7 +339,7 @@
     </div>
   </div>
 
-  <div class="friendly-field">
+  <div class="friendly-field" id="trainingField">
     <label for="trainingDays">Eğitim günleri</label>
     <input id="trainingDays" type="text" placeholder="Örn: 1,2,6,7,8,23,24" />
   </div>
@@ -424,7 +433,7 @@
           <table>
             <thead>
               <tr>
-                <th>Gün</th><th>Report</th><th>Release</th><th>Tip</th><th>Duty</th><th>Night</th><th>Sektör</th><th>SIM eğitim</th>
+                <th>Gün</th><th>Report</th><th>Release</th><th>Tip</th><th>Duty</th><th>Night</th><th>Sektör</th><th class="tri-col">SIM eğitim</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
@@ -440,7 +449,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
 <script>
-const APP_VERSION = '6.9.12';
+const APP_VERSION = '6.10.1';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
@@ -466,15 +475,56 @@ const palette = {
 // Calculation parameters stay in the background. They are intentionally not rendered
 // in the UI or exported PDF.
 const PAY_RULES = Object.freeze({
-  base:[5970,6490,6720,7020,7170],
-  instructorBase:378,
-  offToDuty:400,
-  duty:{threshold:100,normal:28.6,high:52.8},
-  night:71.3,
-  sector:17.9,
-  tri:{included:12,extra:35},
-  layover:{domestic:30,domesticHalf:15,international:50,internationalHalf:25}
+  captain:Object.freeze({
+    base:[5970,6490,6720,7020,7170],
+    instructorBase:378,
+    offToDuty:400,
+    duty:{threshold:100,normal:28.6,high:52.8},
+    night:71.3,
+    sector:17.9,
+    tri:{included:12,extra:35},
+    layover:{domestic:30,domesticHalf:15,international:50,internationalHalf:25}
+  }),
+  firstOfficer:Object.freeze({
+    base:[2990,3210,3440,3660,3880],
+    instructorBase:0,
+    offToDuty:300,
+    duty:{threshold:100,normal:15.4,high:27.5},
+    night:50,
+    sector:11.9,
+    tri:{included:0,extra:0},
+    layover:{domestic:30,domesticHalf:15,international:50,internationalHalf:25}
+  })
 });
+
+const SENIORITY_OPTIONS = Object.freeze({
+  captain:[
+    ['0','0–3 yıl'],
+    ['1','4–6 yıl'],
+    ['2','7–10 yıl'],
+    ['3','11–14 yıl'],
+    ['4','15+ yıl']
+  ],
+  firstOfficer:[
+    ['0','0–1 yıl'],
+    ['1','2–3 yıl'],
+    ['2','3–4 yıl'],
+    ['3','4–5 yıl'],
+    ['4','5+ yıl']
+  ]
+});
+
+function currentRole(){
+  return ($('roleMode')?.value||'captain')==='firstOfficer' ? 'firstOfficer' : 'captain';
+}
+
+function currentPayRules(){
+  return PAY_RULES[currentRole()];
+}
+
+function roleDisplayName(){
+  return currentRole()==='firstOfficer' ? 'First Officer' : 'Captain';
+}
 
 function formatBytes(bytes){
   const n=Number(bytes)||0;
@@ -1033,7 +1083,7 @@ function inferHotelStation(c){
 }
 function findOutboundTime(cells, hotelDay, station){
   // Same day first, then one day before (DXB trip starts the previous evening).
-  const candidates=cells.filter(c=>c.day===hotelDay || c.day===hotelDay-1).sort((a,b)=>a.day-b.day);
+  const candidates=cells.filter(c=>c.day===hotelDay || c.day===hotelDay-1).sort((a,b)=>Math.abs(a.day-hotelDay)-Math.abs(b.day-hotelDay));
   for(const c of candidates){
     for(const line of (c.lines||[])){
       // Any operated/DH departure from ADB.
@@ -1223,8 +1273,11 @@ function sfiSimSessionsForDay(day){
 
 
 function recalc(){
-  const training=new Set($('trainingDays').value.split(',').map(x=>Number(x.trim())).filter(Boolean));
-  const instructorMode=($('instructorMode')?.value||'yes')==='yes';
+  const captainMode=currentRole()==='captain';
+  const training=captainMode
+    ? new Set($('trainingDays').value.split(',').map(x=>Number(x.trim())).filter(Boolean))
+    : new Set();
+  const instructorMode=captainMode && (($('instructorMode')?.value||'yes')==='yes');
   const lastRosterDay=activeCells.length ? Math.max(...activeCells.map(c=>c.day)) : 31;
   let duty=0, night=0, sectors=0, tri=0;
 
@@ -1415,27 +1468,29 @@ function calcPay(){
   const tri=toH($('triEdit').value)||0;
   const sectors=Math.max(0, Number($('sectorEdit').value)||0);
   const fx=Math.max(0, Number(String($('fx').value).replace(',','.'))||0);
+  const rules=currentPayRules();
+  const captainMode=currentRole()==='captain';
 
-  const seniorityIndex=Math.max(0,Math.min(PAY_RULES.base.length-1,Number($('senioritySelect')?.value)||0));
-  const base=PAY_RULES.base[seniorityIndex];
-  const instructorMode=($('instructorMode')?.value||'yes')==='yes';
-  const triBase=instructorMode ? PAY_RULES.instructorBase : 0;
+  const seniorityIndex=Math.max(0,Math.min(rules.base.length-1,Number($('senioritySelect')?.value)||0));
+  const base=rules.base[seniorityIndex];
+  const instructorMode=captainMode && (($('instructorMode')?.value||'yes')==='yes');
+  const triBase=instructorMode ? rules.instructorBase : 0;
   const offToDutyCount=Math.max(0, Math.floor(Number($('offToDutyCount')?.value)||0));
 
-  const offToDutyPay=offToDutyCount*PAY_RULES.offToDuty;
+  const offToDutyPay=offToDutyCount*rules.offToDuty;
   const dutyPay=
-    Math.min(duty,PAY_RULES.duty.threshold)*PAY_RULES.duty.normal +
-    Math.max(0,duty-PAY_RULES.duty.threshold)*PAY_RULES.duty.high;
-  const nightPay=night*PAY_RULES.night;
-  const sectorPay=sectors*PAY_RULES.sector;
+    Math.min(duty,rules.duty.threshold)*rules.duty.normal +
+    Math.max(0,duty-rules.duty.threshold)*rules.duty.high;
+  const nightPay=night*rules.night;
+  const sectorPay=sectors*rules.sector;
   const triPay=instructorMode
-    ? (triBase + Math.max(0,tri-PAY_RULES.tri.included)*PAY_RULES.tri.extra)
+    ? (triBase + Math.max(0,tri-rules.tri.included)*rules.tri.extra)
     : 0;
   const lay=
-    (Number($('domFull').value)||0)*PAY_RULES.layover.domestic +
-    (Number($('domHalf').value)||0)*PAY_RULES.layover.domesticHalf +
-    (Number($('intFull').value)||0)*PAY_RULES.layover.international +
-    (Number($('intHalf').value)||0)*PAY_RULES.layover.internationalHalf;
+    (Number($('domFull').value)||0)*rules.layover.domestic +
+    (Number($('domHalf').value)||0)*rules.layover.domesticHalf +
+    (Number($('intFull').value)||0)*rules.layover.international +
+    (Number($('intHalf').value)||0)*rules.layover.internationalHalf;
 
   const total=base+dutyPay+nightPay+triPay+sectorPay+lay+offToDutyPay;
   $('totalTl').textContent=tl(total*fx);
@@ -1453,7 +1508,9 @@ function plainDutyType(d){
 }
 
 function buildResultsPdfDefinition(){
-  const instructorYes=($('instructorMode')?.value||'yes')==='yes';
+  const captainMode=currentRole()==='captain';
+  const instructorYes=captainMode && (($('instructorMode')?.value||'yes')==='yes');
+  const roleName=roleDisplayName();
   const generatedAt=new Intl.DateTimeFormat('tr-TR',{dateStyle:'medium',timeStyle:'short'}).format(new Date());
   const selectedSeniority=$('senioritySelect')?.selectedOptions?.[0]?.textContent||'—';
   const offCount=Math.max(0,Math.floor(Number($('offToDutyCount')?.value)||0));
@@ -1467,16 +1524,19 @@ function buildResultsPdfDefinition(){
   const sectorValue=String($('sectorEdit')?.value||'0');
   const triValue=$('triEdit')?.value||'00:00';
 
-  const dutyRows=activeDuties.map(d=>[
-    {text:String(d.day),style:'dutyDay'},
-    d.carryIn ? '00:00*' : (d.report||'—'),
-    d.monthEndCutoff ? '24:00*' : (d.release||'—'),
-    plainDutyType(d),
-    {text:hhmm(d.credit||0),bold:true},
-    hhmm(d.night||0),
-    String(d.sectors||0),
-    d.sfiCredit>0 ? hhmm(d.sfiCredit) : '—'
-  ]);
+  const dutyRows=activeDuties.map(d=>{
+    const row=[
+      {text:String(d.day),style:'dutyDay'},
+      d.carryIn ? '00:00*' : (d.report||'—'),
+      d.monthEndCutoff ? '24:00*' : (d.release||'—'),
+      plainDutyType(d),
+      {text:hhmm(d.credit||0),bold:true},
+      hhmm(d.night||0),
+      String(d.sectors||0)
+    ];
+    if(captainMode) row.push(d.sfiCredit>0 ? hhmm(d.sfiCredit) : '—');
+    return row;
+  });
 
   const kpis=[
     {label:'DUTY',value:dutyValue},
@@ -1548,13 +1608,16 @@ function buildResultsPdfDefinition(){
   ]);
 
   const settings=[
+    ['Pozisyon',roleName],
     ['Seniority',selectedSeniority],
-    ['SFI/TRI',instructorYes?'Yes':'No'],
     ['Off to Duty',String(offCount)],
-    ['EUR/TL',fx],
-    ['Eğitim günleri',trainingDays],
-    ['Oluşturma',generatedAt]
+    ['EUR/TL',fx]
   ];
+  if(captainMode){
+    settings.splice(2,0,['SFI/TRI',instructorYes?'Yes':'No']);
+    settings.push(['Eğitim günleri',trainingDays]);
+  }
+  settings.push(['Oluşturma',generatedAt]);
 
   const settingsTable={
     table:{widths:[86,'*'],body:settings.map(([k,v])=>[
@@ -1591,7 +1654,7 @@ function buildResultsPdfDefinition(){
         {width:'*',stack:[
           {text:'ROSTER PAY',fontSize:9,bold:true,color:'#9ED0FF',characterSpacing:2.2,margin:[12,2,0,0]},
           {text:'Aylık Roster Özeti',fontSize:25,bold:true,color:'#FFFFFF',margin:[12,5,0,0]},
-          {text:rosterLabel,fontSize:11,color:'#D8E8FA',margin:[12,5,0,0]}
+          {text:`${rosterLabel} · ${roleName}`,fontSize:11,color:'#D8E8FA',margin:[12,5,0,0]}
         ]}
       ],margin:[0,0,0,22]},
 
@@ -1638,10 +1701,15 @@ function buildResultsPdfDefinition(){
 
       {text:'GÜNLÜK GÖREV DETAYLARI',fontSize:18,bold:true,color:'#102245',pageBreak:'before',margin:[0,0,0,3]},
       {text:rosterLabel,fontSize:9,color:'#71809A',margin:[0,0,0,13]},
-      {table:{headerRows:1,dontBreakRows:true,widths:[26,42,42,'*',44,44,34,52],body:[
-        ['Gün','Report','Release','Tip','Duty','Night','Sektör','TRI/SFI'].map(x=>({text:x,style:'dutyHead'})),
-        ...dutyRows
-      ]},layout:{
+      {table:{headerRows:1,dontBreakRows:true,
+        widths:captainMode ? [26,42,42,'*',44,44,34,52] : [28,46,46,'*',48,48,38],
+        body:[
+          (captainMode
+            ? ['Gün','Report','Release','Tip','Duty','Night','Sektör','TRI/SFI']
+            : ['Gün','Report','Release','Tip','Duty','Night','Sektör']
+          ).map(x=>({text:x,style:'dutyHead'})),
+          ...dutyRows
+        ]},layout:{
         fillColor:(rowIndex)=> rowIndex===0?'#0D274D':(rowIndex%2===0?'#F4F7FB':null),
         hLineWidth:(i,node)=>i===0||i===1||i===node.table.body.length?0:.6,
         hLineColor:()=> '#DFE6EF',vLineWidth:()=>0,
@@ -1749,8 +1817,22 @@ if(offToDutyCountInput){
 }
 
 
+function populateSeniorityOptions(role){
+  const select=$('senioritySelect');
+  if(!select) return;
+  const previous=Number(select.value)||0;
+  const options=SENIORITY_OPTIONS[role]||SENIORITY_OPTIONS.captain;
+  select.innerHTML=options.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
+  if(role==='captain'){
+    select.value=String(Math.min(options.length-1, previous || 1));
+  }else{
+    select.value=String(Math.min(options.length-1, previous));
+  }
+}
+
 function applyInstructorMode(){
-  const yes=($('instructorMode')?.value||'yes')==='yes';
+  const captainMode=currentRole()==='captain';
+  const yes=captainMode && (($('instructorMode')?.value||'yes')==='yes');
   ['triKpi','triManualField'].forEach(id=>{
     const el=$(id); if(el) el.classList.toggle('tri-hidden', !yes);
   });
@@ -1758,22 +1840,51 @@ function applyInstructorMode(){
   if(!yes){
     if($('triEdit')) $('triEdit').value='00:00';
     if($('triShow')) $('triShow').textContent='00:00';
-  } else if(activeDuties.length){
-    recalc();
-    return;
   }
-  calcPay();
 }
+
+function applyRoleMode(){
+  const captainMode=currentRole()==='captain';
+  const role=currentRole();
+
+  ['instructorField','trainingField'].forEach(id=>{
+    const el=$(id); if(el) el.classList.toggle('tri-hidden', !captainMode);
+  });
+
+  populateSeniorityOptions(role);
+  applyInstructorMode();
+
+  if(activeDuties.length){
+    recalc();
+  }else{
+    calcPay();
+  }
+}
+
+document.querySelectorAll('#roleToggle .seg-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('#roleToggle .seg-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    $('roleMode').value=btn.dataset.value;
+    applyRoleMode();
+  });
+});
 
 document.querySelectorAll('#instructorToggle .seg-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('#instructorToggle .seg-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     $('instructorMode').value=btn.dataset.value;
-    applyInstructorMode();
+    if(activeDuties.length){
+      recalc();
+    }else{
+      applyInstructorMode();
+      calcPay();
+    }
   });
 });
-applyInstructorMode();
+
+applyRoleMode();
 
 </script>
 </body>
