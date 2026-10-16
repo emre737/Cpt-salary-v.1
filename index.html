@@ -158,9 +158,28 @@
       gap:8px;
     }
     .friendly-field label{
-      font-size:15px;
-      font-weight:650;
-      color:var(--text);
+      position:relative;
+      display:flex;
+      align-items:center;
+      min-height:28px;
+      padding-left:18px;
+      font-size:17px;
+      font-weight:800;
+      line-height:1.25;
+      color:#f7f9ff;
+      letter-spacing:-0.01em;
+    }
+    .friendly-field label::before{
+      content:"";
+      position:absolute;
+      left:0;
+      top:50%;
+      width:5px;
+      height:24px;
+      transform:translateY(-50%);
+      border-radius:999px;
+      background:linear-gradient(180deg,#66a7ff 0%,#63ead7 100%);
+      box-shadow:0 0 16px rgba(99,234,215,.22);
     }
     .friendly-field input,
     .friendly-field select{
@@ -448,7 +467,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
 <script>
-const APP_VERSION = '6.10.3';
+const APP_VERSION = '6.10.4';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');

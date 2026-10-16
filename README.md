@@ -1,18 +1,18 @@
-# Roster Pay Premium V6.10.3 — TRI/SFI Görev Günleri
-
-Based directly on V6.10.2.
+# Roster Pay Premium V6.10.4 — Vurgulu Başlıklar
 
 Changes
-- Removed the small explanatory text under SFI/TRI.
-- Renamed `Eğitim günleri` to:
-  `TRI/SFI Görev Günleri (Örn: 18,19,20,29)`
-- Removed the old input placeholder.
-- No calculation/parser logic changed.
-- Captain / First Officer behavior is unchanged.
-- COV domestic classification from V6.10.2 is preserved.
+- Form field headings are more prominent.
+- Added a slim blue→turquoise accent bar to the left of each form heading.
+- Headings increased to 17px / weight 800 with brighter text.
+- Existing layout, fields and input sizes are unchanged.
+- TRI/SFI Görev Günleri example remains unchanged.
+
+No calculation changes
+- Captain / First Officer rules unchanged.
+- Duty / Night / STBY / RSV / SIM / layover parser unchanged.
+- COV domestic classification preserved.
 
 Tests
 - JavaScript syntax PASS.
-- Captain / First Officer selector preserved.
-- COV domestic classification preserved.
-- Exact source diff PASS: only version number + requested UI text changes.
+- Exact source diff PASS: only version number + heading CSS changed.
+- Calculation/parser JavaScript confirmed byte-for-byte unchanged apart from version.
