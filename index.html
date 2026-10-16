@@ -328,7 +328,6 @@
       <button type="button" class="seg-btn" data-value="no">No</button>
     </div>
     <input id="instructorMode" type="hidden" value="yes" />
-    <div class="field-help">No seçilirse TRI/SFI alanları tamamen gizlenir.</div>
   </div>
 
   <div class="friendly-field">
@@ -340,8 +339,8 @@
   </div>
 
   <div class="friendly-field" id="trainingField">
-    <label for="trainingDays">Eğitim günleri</label>
-    <input id="trainingDays" type="text" placeholder="Örn: 1,2,6,7,8,23,24" />
+    <label for="trainingDays">TRI/SFI Görev Günleri (Örn: 18,19,20,29)</label>
+    <input id="trainingDays" type="text" />
   </div>
 
   <div class="friendly-field">
@@ -449,7 +448,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
 <script>
-const APP_VERSION = '6.10.2';
+const APP_VERSION = '6.10.3';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
