@@ -467,7 +467,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
 <script>
-const APP_VERSION = '6.10.4';
+const APP_VERSION = '6.10.5';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
@@ -680,6 +680,10 @@ function groupLines(items){
   return lines.sort((a,b)=>b.y-a.y).map(l => l.items.sort((a,b)=>a.x-b.x).map(i=>i.str).join(' ').replace(/\s+/g,' ').trim());
 }
 
+// Shared simulator alias recognition for both Duty and SFI/TRI credit.
+// Every recognized SIM family gets the same normal +00:30 post-SIM Duty treatment.
+const SIM_ALIAS_RX=/(BOEING-[A-Z0-9]+|GOZENS\d+(?:-[A-Z])?|GOZENAYT[A-D]?|AYTGOZEN[A-D]?|SXS?-?FTD[A-D]?|GOZEN[A-D]?)/i;
+
 function parseCell(day, lines){
   const text=lines.join(' | ');
   const events=[];
@@ -741,12 +745,12 @@ function parseCell(day, lines){
       });
     }
 
-    const simMatch=line.match(/BOEING-[A-Z0-9]+/i);
-    const simPos=simMatch ? line.search(/BOEING-[A-Z0-9]+/i) : -1;
+    const simMatch=line.match(SIM_ALIAS_RX);
+    const simPos=simMatch ? line.search(SIM_ALIAS_RX) : -1;
     if(simPos>=0){
       let ts=times(line);
       for(let j=i+1;j<Math.min(lines.length,i+4)&&ts.length<2;j++){
-        if(!/^\s*~/.test(lines[j]) && !/BOEING/i.test(lines[j])) break;
+        if(!/^\s*~/.test(lines[j]) && !SIM_ALIAS_RX.test(lines[j])) break;
         ts=ts.concat(times(lines[j]));
       }
       lineEvents.push({
@@ -1254,7 +1258,7 @@ function detectSfiSimSessions(lines=[]){
 
   // Longest/specific patterns first so e.g. GOZENAYTC is not shortened to GOZENA.
   // SXS?-?FTD also safely accepts SXS-FTD, SXSFTD and SXFTD roster variants.
-  const rx=/(BOEING-[A-Z0-9]+|GOZENAYT[A-D]?|AYTGOZEN[A-D]?|SXS?-?FTD[A-D]?|GOZEN[A-D]?)/i;
+  const rx=SIM_ALIAS_RX;
 
   for(const rawLine of (lines||[])){
     const line=normalizeSfiSimText(rawLine);
@@ -1312,7 +1316,7 @@ function recalc(){
     // Duty rules:
     // RSV0-4 has no Duty/Night effect regardless of scheduled duration.
     // Ordinary SB standby keeps the existing %25 and activated-standby logic.
-    // SFI SIM aliases remain completely separate from Duty.
+    // Recognized SIM aliases share the same +00:30 post-SIM Duty treatment.
     if(d.reserve){
       d.credit=0;
       d.activatedStandby=false;
