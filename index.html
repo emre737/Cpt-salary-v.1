@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="tr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -210,13 +210,44 @@
       padding:12px;
       box-sizing:border-box;
       background:rgba(255,255,255,.045);
+      display:flex;
+      align-items:center;
+      gap:12px;
+      overflow:hidden;
     }
     .file-picker input[type="file"]{
-      min-height:auto;
-      padding:0;
-      border:0;
-      background:transparent;
+      position:absolute;
+      width:1px;
+      height:1px;
+      opacity:0;
+      pointer-events:none;
+    }
+    .file-picker .file-select-btn{
+      position:static;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:38px;
+      padding:0 14px;
+      border-radius:12px;
+      background:#F7F9FF;
+      color:#162033;
       font-size:15px;
+      font-weight:750;
+      line-height:1;
+      letter-spacing:0;
+      cursor:pointer;
+      white-space:nowrap;
+      flex:0 0 auto;
+    }
+    .file-picker .file-select-btn::before{display:none !important;}
+    .file-name{
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      font-size:15px;
+      color:var(--text);
     }
 
 
@@ -295,10 +326,10 @@
         <div class="hero-copy">
           <div class="pill" id="versionPill">V6.9.1 ACTIVE</div>
           <h1>Roster Pay</h1>
-          <div class="sub">Roster PDF’den premium görünümlü tahmini maaş hesabı</div>
+          <div class="sub">Premium roster-based pay estimate from your schedule PDF</div>
         </div>
         <div class="hero-actions">
-          <button id="refreshBtn" class="refresh-btn" type="button" aria-label="En son sürümü refresh et">↻ Refresh</button>
+          <button id="refreshBtn" class="refresh-btn" type="button" aria-label="Refresh to the latest version">↻ Refresh</button>
           <div class="hero-emblem" aria-label="Roster Pay logo">
             <img src="brand-mark.png" alt="" aria-hidden="true">
           </div>
@@ -307,15 +338,13 @@
     </section>
 
     <section class="section">
-      <h2>1. Roster PDF</h2>
       <div class="grid2">
         <div class="field" style="grid-column:1/-1">
-          <label>PDF dosyan</label>
           <div class="filebox">
           
 <div class="friendly-form">
   <div class="friendly-field">
-    <label>Pozisyon</label>
+    <label>Position</label>
     <div class="segmented" id="roleToggle">
       <button type="button" class="seg-btn active" data-value="captain">Captain</button>
       <button type="button" class="seg-btn" data-value="firstOfficer">First Officer</button>
@@ -326,11 +355,11 @@
   <div class="friendly-field">
     <label for="senioritySelect">Seniority</label>
     <select id="senioritySelect">
-      <option value="0">0–3 yıl</option>
-      <option value="1" selected>4–6 yıl</option>
-      <option value="2">7–10 yıl</option>
-      <option value="3">11–14 yıl</option>
-      <option value="4">15+ yıl</option>
+      <option value="0">0–3 years</option>
+      <option value="1" selected>4–6 years</option>
+      <option value="2">7–10 years</option>
+      <option value="3">11–14 years</option>
+      <option value="4">15+ years</option>
     </select>
   </div>
 
@@ -341,7 +370,7 @@
 
 
   <div class="friendly-field" id="instructorField">
-    <label>SFI/TRI</label>
+    <label>Instructor</label>
     <div class="segmented" id="instructorToggle">
       <button type="button" class="seg-btn active" data-value="yes">Yes</button>
       <button type="button" class="seg-btn" data-value="no">No</button>
@@ -351,57 +380,59 @@
 
   <div class="friendly-field">
     <label for="pdfFile">Roster PDF</label>
-    <div class="upload-note"><strong>Önemli:</strong> PDF dosyasını lokal zamanlı olarak indirip yükleyin.</div>
+    <div class="upload-note"><strong>Important:</strong> Download and upload the PDF in Local Time using the CAE application.</div>
     <div class="file-picker">
+      <label class="file-select-btn" for="pdfFile">Choose File</label>
+      <span id="pdfFileName" class="file-name">No file selected</span>
       <input id="pdfFile" type="file" accept="application/pdf,.pdf" />
     </div>
   </div>
 
   <div class="friendly-field" id="trainingField">
-    <label for="trainingDays">TRI/SFI Görev Günleri (Örn: 18,19,20,29)</label>
+    <label for="trainingDays">Instructor Duty Days (e.g. 18,19,20,29)</label>
     <input id="trainingDays" type="text" />
   </div>
 
   <div class="friendly-field">
-    <label for="fx">EUR/TL kuru</label>
+    <label for="fx">EUR/TRY Exchange Rate</label>
     <input id="fx" type="text" inputmode="decimal" value="63.75" />
   </div>
 </div>
 
 
       </div>
-      <button id="parseBtn" class="btn" disabled style="margin-top:14px">Ödemeyi Hesapla</button>
-      <div id="status" class="status">PDF seçince okuma aktif olacak.</div>
+      <button id="parseBtn" class="btn" disabled style="margin-top:14px">Calculate Pay</button>
+      <div id="status" class="status">Choose a PDF to enable calculation.</div>
     </section>
 
     <div id="results" class="results">
       <div class="grid3" style="margin-top:18px">
         <section class="total-card">
-          <div class="pill">Roster bazlı tahmini kazanç</div>
+          <div class="pill">Estimated Roster Earnings</div>
           <div id="totalTl" class="total-tl">—</div>
           <div id="totalEur" class="total-eur">—</div>
           <div class="mini-grid">
             <div class="kpi"><div class="lbl">Duty</div><div class="val" id="dutyShow">—</div></div>
             <div class="kpi"><div class="lbl">Night</div><div class="val" id="nightShow">—</div></div>
-            <div class="kpi"><div class="lbl">Ek sektör</div><div class="val" id="sectorShow">—</div></div>
-            <div class="kpi" id="triKpi"><div class="lbl">TRI/SFI credit</div><div class="val" id="triShow">—</div></div>
+            <div class="kpi"><div class="lbl">Extra Sector</div><div class="val" id="sectorShow">—</div></div>
+            <div class="kpi" id="triKpi"><div class="lbl">Instructor Credit</div><div class="val" id="triShow">—</div></div>
           </div>
-          <button id="pdfExportBtn" class="report-btn" type="button">PDF Raporunu İndir</button>
-          <div class="report-help">Hesap özeti, aktivite grafikleri ve gün gün görev tablosu PDF'e aktarılır.</div>
+          <button id="pdfExportBtn" class="report-btn" type="button">Download PDF Report</button>
+          <div class="report-help">Includes the calculation summary, activity charts and daily duty table.</div>
         </section>
 
         <section class="panel">
-          <h3>Aktivite özeti</h3>
+          <h3>Activity Summary</h3>
           <div class="activity-stat-grid">
-            <div class="activity-stat"><span>Görev</span><strong id="activityDutyCount">—</strong></div>
+            <div class="activity-stat"><span>Duties</span><strong id="activityDutyCount">—</strong></div>
             <div class="activity-stat"><span>STBY</span><strong id="activityStbyCount">—</strong></div>
             <div class="activity-stat"><span>RSV</span><strong id="activityRsvCount">—</strong></div>
             <div class="activity-stat"><span>SIM</span><strong id="activitySimCount">—</strong></div>
-            <div class="activity-stat"><span>Yatı</span><strong id="activityLayoverCount">—</strong></div>
+            <div class="activity-stat"><span>Layovers</span><strong id="activityLayoverCount">—</strong></div>
           </div>
           <div class="progress-wrap" style="margin-top:18px">
             <div class="progress-head">
-              <span>Night / Duty oranı</span>
+              <span>Night / Duty Ratio</span>
               <span id="nightShareText">—</span>
             </div>
             <div class="bar"><span id="nightShareBar" style="width:0%"></span></div>
@@ -410,11 +441,11 @@
       </div>
 
       <section class="panel soft-section">
-        <h3>Görev dağılımı</h3>
+        <h3>Duty Distribution</h3>
         <div class="chart-box">
           <div class="donut" id="donut">
             <div class="donut-center">
-              <div class="small">Görev</div>
+              <div class="small">Duties</div>
               <div id="donutTotal" style="font-size:22px">—</div>
             </div>
           </div>
@@ -423,35 +454,35 @@
       </section>
 
       <section class="panel soft-section">
-        <h3>Otomatik yatılar</h3>
-        <div id="hotelAutoSummary" class="muted-note">PDF okunduktan sonra gerçek Hotel istasyonları burada görünecek; DH/Travel transfer noktaları yatı sayılmaz.</div>
+        <h3>Automatic Layovers</h3>
+        <div id="hotelAutoSummary" class="muted-note">Detected hotel stations will appear here after the PDF is processed; DH/Travel transfer points are not counted as layovers.</div>
         <div id="hotelAutoCards" class="break-grid" style="margin-top:12px"></div>
       </section>
 
       <section class="panel soft-section">
-        <h3>Manuel kontrol</h3>
+        <h3>Manual Review</h3>
         <div class="grid4 manual">
           <div><label>Duty</label><input id="dutyEdit" type="text"></div>
           <div><label>Night</label><input id="nightEdit" type="text"></div>
-          <div><label>Ek sektör</label><input id="sectorEdit" type="number" min="0" step="1"></div>
-          <div id="triManualField"><label>TRI/SFI toplam credit</label><input id="triEdit" type="text"></div>
+          <div><label>Extra Sector</label><input id="sectorEdit" type="number" min="0" step="1"></div>
+          <div id="triManualField"><label>Instructor Total Credit</label><input id="triEdit" type="text"></div>
         </div>
         <div class="grid4 manual" style="margin-top:12px">
-          <div><label>İç hat tam yatı</label><input id="domFull" type="number" min="0" step="1" value="0"></div>
-          <div><label>İç hat yarım yatı</label><input id="domHalf" type="number" min="0" step="1" value="0"></div>
-          <div><label>Dış hat tam yatı</label><input id="intFull" type="number" min="0" step="1" value="0"></div>
-          <div><label>Dış hat yarım yatı</label><input id="intHalf" type="number" min="0" step="1" value="0"></div>
+          <div><label>Domestic Full Layover</label><input id="domFull" type="number" min="0" step="1" value="0"></div>
+          <div><label>Domestic Half Layover</label><input id="domHalf" type="number" min="0" step="1" value="0"></div>
+          <div><label>International Full Layover</label><input id="intFull" type="number" min="0" step="1" value="0"></div>
+          <div><label>International Half Layover</label><input id="intHalf" type="number" min="0" step="1" value="0"></div>
         </div>
       </section>
 
       <section class="panel soft-section">
-        <h3>PDF’den bulunan görevler</h3>
+        <h3>Duties Detected in PDF</h3>
         <div id="hotelInfo" class="muted-note" style="margin-bottom:12px">—</div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Gün</th><th>Report</th><th>Release</th><th>Tip</th><th>Duty</th><th>Night</th><th>Sektör</th><th class="tri-col">SIM eğitim</th>
+                <th>Day</th><th>Report</th><th>Release</th><th>Type</th><th>Duty</th><th>Night</th><th>Sector</th><th class="tri-col">Instructor</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
@@ -460,14 +491,14 @@
       </section>
     </div>
 
-    <div class="foot" id="versionFoot">GitHub Pages / PWA beta · premium arayüz · V6.9.1 ACTIVE</div>
+    <div class="foot" id="versionFoot">GitHub Pages / PWA beta · premium interface · V6.9.1 ACTIVE</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
 <script>
-const APP_VERSION = '6.10.5';
+const APP_VERSION = '6.11.0';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
@@ -481,7 +512,7 @@ function applyVersionLabels(){
   const pill=$('versionPill');
   const foot=$('versionFoot');
   if(pill) pill.textContent=`${APP_VERSION_LABEL} ACTIVE`;
-  if(foot) foot.textContent=`GitHub Pages / PWA beta · premium arayüz · ${APP_VERSION_LABEL} ACTIVE`;
+  if(foot) foot.textContent=`GitHub Pages / PWA beta · premium interface · ${APP_VERSION_LABEL} ACTIVE`;
 }
 applyVersionLabels();
 
@@ -517,18 +548,18 @@ const PAY_RULES = Object.freeze({
 
 const SENIORITY_OPTIONS = Object.freeze({
   captain:[
-    ['0','0–3 yıl'],
-    ['1','4–6 yıl'],
-    ['2','7–10 yıl'],
-    ['3','11–14 yıl'],
-    ['4','15+ yıl']
+    ['0','0–3 years'],
+    ['1','4–6 years'],
+    ['2','7–10 years'],
+    ['3','11–14 years'],
+    ['4','15+ years']
   ],
   firstOfficer:[
-    ['0','0–1 yıl'],
-    ['1','2–3 yıl'],
-    ['2','3–4 yıl'],
-    ['3','4–5 yıl'],
-    ['4','5+ yıl']
+    ['0','0–1 year'],
+    ['1','2–3 years'],
+    ['2','3–4 years'],
+    ['3','4–5 years'],
+    ['4','5+ years']
   ]
 });
 
@@ -554,7 +585,7 @@ function formatBytes(bytes){
 function localFileTime(ms){
   if(!ms) return '—';
   try{
-    return new Intl.DateTimeFormat('tr-TR',{
+    return new Intl.DateTimeFormat('en-GB',{
       day:'2-digit',month:'2-digit',year:'numeric',
       hour:'2-digit',minute:'2-digit',second:'2-digit'
     }).format(new Date(ms));
@@ -605,6 +636,7 @@ function resetPdfSelection(){
   currentPdfMeta=null;
   clearLoadedRosterState();
   renderPdfMeta();
+  if($('pdfFileName')) $('pdfFileName').textContent='No file selected';
   btn.disabled=true;
 }
 
@@ -613,20 +645,21 @@ function resetPdfSelection(){
 file.addEventListener('click', ()=>{
   file.value='';
   resetPdfSelection();
-  $('status').textContent='Yeni PDF seçimi bekleniyor…';
+  $('status').textContent='Waiting for a new PDF selection…';
 });
 
 file.addEventListener('change', async ()=>{
   clearLoadedRosterState();
   const f=file.files?.[0];
+  if($('pdfFileName')) $('pdfFileName').textContent=f?.name||'No file selected';
   if(!f){
     resetPdfSelection();
-    $('status').textContent='PDF seçince okuma aktif olacak.';
+    $('status').textContent='Choose a PDF to enable calculation.';
     return;
   }
 
   btn.disabled=true;
-  $('status').textContent='Yeni PDF içeriği doğrulanıyor…';
+  $('status').textContent='Validating the new PDF…';
 
   try{
     // Read and freeze the bytes NOW. Parsing later uses these exact bytes,
@@ -643,10 +676,10 @@ file.addEventListener('change', async ()=>{
     };
     renderPdfMeta();
     btn.disabled=false;
-    $('status').textContent='Yeni PDF hazır · “Ödemeyi Hesapla”ya bas.';
+    $('status').textContent='New PDF ready · tap “Calculate Pay”.';
   }catch(e){
     resetPdfSelection();
-    $('status').textContent='PDF seçilemedi: '+e.message;
+    $('status').textContent='PDF could not be selected: '+e.message;
   }
 });
 
@@ -666,8 +699,8 @@ const addHoursToHHMM=(t,h)=>{
   const mins=Math.round(v*60)%1440;
   return pad(Math.floor(mins/60))+':'+pad(mins%60);
 };
-const eur=v=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'EUR',minimumFractionDigits:2}).format(v);
-const tl=v=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY',maximumFractionDigits:0}).format(v);
+const eur=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'EUR',minimumFractionDigits:2}).format(v);
+const tl=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'TRY',maximumFractionDigits:0}).format(v);
 
 function groupLines(items){
   const lines=[];
@@ -954,9 +987,9 @@ function pair(cells){
 
 async function extractPdf(f, frozenBuffer=null){
   if(!pdfjs){
-    $('status').textContent='PDF okuyucu hazırlanıyor…';
+    $('status').textContent='Preparing PDF reader…';
     pdfjs = window.pdfjsLib;
-    if(!pdfjs) throw new Error('PDF.js yüklenemedi. İnternet bağlantısını kontrol et.');
+    if(!pdfjs) throw new Error('PDF.js could not be loaded. Check your internet connection.');
     pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 
@@ -1047,7 +1080,7 @@ async function extractPdf(f, frozenBuffer=null){
 
   if(year!=null && month!=null){
     currentRosterYear=year; currentRosterMonth=month;
-    const monthLabels=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+    const monthLabels=['January','February','March','April','May','June','July','August','September','October','November','December'];
     currentRosterLabel=`${monthLabels[month]} ${year}`;
     const daysInMonth=new Date(year,month+1,0).getDate();
     return cells.slice(first, first+daysInMonth);
@@ -1057,12 +1090,12 @@ async function extractPdf(f, frozenBuffer=null){
 }
 function renderType(d){
   let tag='Duty', cls='';
-  if(d.carryIn){ tag='Önceki aydan'; cls=''; }
+  if(d.carryIn){ tag='Previous Month'; cls=''; }
   else if(d.reserve){ tag='RSV'; cls='stby'; }
   else if(d.activatedStandby){ tag='STBY → Duty'; cls='stby'; }
   else if(d.standby){ tag='STBY'; cls='stby'; }
   else if((d.simSessions||0)>0){ tag='SIM'; cls='sim'; }
-  if(d.training) return `<span class="tag train">${tag} · Eğitim</span>`;
+  if(d.training) return `<span class="tag train">${tag} · Training</span>`;
   return `<span class="tag ${cls}">${tag}</span>`;
 }
 
@@ -1227,14 +1260,14 @@ function applyLayovers(cells){
   $('intHalf').value=intHalf;
 
   $('hotelAutoSummary').textContent = stays.length
-    ? `İç hat ${domEq.toFixed(1).replace('.',',')} gün · Dış hat ${intEq.toFixed(1).replace('.',',')} gün`
-    : 'Hotel kaydı bulunamadı.';
+    ? `Domestic ${domEq.toFixed(1)} days · International ${intEq.toFixed(1)} days`
+    : 'No hotel record found.';
 
   $('hotelAutoCards').innerHTML = stays.map(s=>`
     <div class="earn-card">
-      <div class="x">${s.domestic?'İç hat':'Dış hat'} yatı</div>
-      <div class="y">${s.station} · ${String(s.days).replace('.',',')} gün</div>
-      <div class="x">${s.startDay}. gün ${s.startTime||'—'} → ${s.endDay}. gün ${s.endTime||'—'}</div>
+      <div class="x">${s.domestic?'Domestic':'International'} layover</div>
+      <div class="y">${s.station} · ${String(s.days)} days</div>
+      <div class="x">Day ${s.startDay} ${s.startTime||'—'} → Day ${s.endDay} ${s.endTime||'—'}</div>
     </div>
   `).join('');
 
@@ -1399,8 +1432,8 @@ function recalc(){
   buildActivityVisuals(stays);
   const hotelStations=[...new Set(stays.map(s=>s.station))];
   $('hotelInfo').textContent = hotelStations.length
-    ? `Bulunan yatı istasyonları: ${hotelStations.join(', ')}`
-    : 'Hotel/yatı istasyonu otomatik bulunamadı.';
+    ? `Detected layover stations: ${hotelStations.join(', ')}`
+    : 'No hotel/layover station was detected automatically.';
 
   $('rows').innerHTML=activeDuties.map(d=>`
     <tr>
@@ -1410,15 +1443,15 @@ function recalc(){
       <td>${renderType(d)}</td>
       <td>${hhmm(d.credit)}${
         d.reserve
-          ? ` <span class="muted-note">(Duty credit yok)</span>`
+          ? ` <span class="muted-note">(no Duty credit)</span>`
           : (d.activatedStandby
-              ? ` <span class="muted-note">(SB %25 + aktif duty +00:30)</span>`
+              ? ` <span class="muted-note">(SB 25% + active duty +00:30)</span>`
               : (d.monthEndCutoff
-                  ? ' <span class="muted-note">(ay sonu 24:00 cutoff · post-flight yok)</span>'
+                  ? ' <span class="muted-note">(month-end 24:00 cutoff · no post-flight)</span>'
                   : (d.carryIn
-                      ? ' <span class="muted-note">(önceki aydan 00:00 → Release)</span>'
+                      ? ' <span class="muted-note">(carried in from previous month 00:00 → Release)</span>'
                       : (d.dhFlightComposite
-                      ? ' <span class="muted-note">(ilk Report → son Release +00:30)</span>'
+                      ? ' <span class="muted-note">(first Report → final Release +00:30)</span>'
                       : (d.postFlightDuty ? ' <span class="muted-note">(+00:30 post-flight)</span>' : '')))))
       }</td>
       <td>${hhmm(d.night)}</td>
@@ -1466,7 +1499,7 @@ function buildActivityVisuals(stays=[]){
       <div class="legend-left"><span class="sw" style="background:${c}"></span><span>${k}</span></div>
       <strong>${v}</strong>
     </div>
-  `).join('') : '<div class="muted-note">Görev bulunamadı.</div>';
+  `).join('') : '<div class="muted-note">No duty found.</div>';
 
   const standbyCount=activeDuties.filter(d=>d.standby).length;
   const reserveCount=activeDuties.filter(d=>d.reserve).length;
@@ -1521,19 +1554,19 @@ function calcPay(){
 
 
 function plainDutyType(d){
-  if(d.carryIn) return 'Önceki aydan';
+  if(d.carryIn) return 'Previous Month';
   if(d.reserve) return 'RSV';
   if(d.activatedStandby) return 'STBY → Duty';
   if(d.standby) return 'STBY';
-  if((d.simSessions||0)>0) return d.training ? 'SIM · Eğitim' : 'SIM';
-  return d.training ? 'Duty · Eğitim' : 'Duty';
+  if((d.simSessions||0)>0) return d.training ? 'SIM · Training' : 'SIM';
+  return d.training ? 'Duty · Training' : 'Duty';
 }
 
 function buildResultsPdfDefinition(){
   const captainMode=currentRole()==='captain';
   const instructorYes=captainMode && (($('instructorMode')?.value||'yes')==='yes');
   const roleName=roleDisplayName();
-  const generatedAt=new Intl.DateTimeFormat('tr-TR',{dateStyle:'medium',timeStyle:'short'}).format(new Date());
+  const generatedAt=new Intl.DateTimeFormat('en-GB',{dateStyle:'medium',timeStyle:'short'}).format(new Date());
   const selectedSeniority=$('senioritySelect')?.selectedOptions?.[0]?.textContent||'—';
   const offCount=Math.max(0,Math.floor(Number($('offToDutyCount')?.value)||0));
   const trainingDays=($('trainingDays')?.value||'').trim()||'—';
@@ -1563,9 +1596,9 @@ function buildResultsPdfDefinition(){
   const kpis=[
     {label:'DUTY',value:dutyValue},
     {label:'NIGHT',value:nightValue},
-    {label:'EK SEKTÖR',value:sectorValue}
+    {label:'EXTRA SECTOR',value:sectorValue}
   ];
-  if(instructorYes) kpis.push({label:'TRI/SFI',value:triValue});
+  if(instructorYes) kpis.push({label:'INSTRUCTOR',value:triValue});
 
   const kpiCells=kpis.map(k=>({
     width:'*',
@@ -1598,7 +1631,7 @@ function buildResultsPdfDefinition(){
   const donutSvg=`<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
     <circle cx="60" cy="60" r="${radius}" fill="none" stroke="#E7ECF4" stroke-width="16"/>
     ${rings}
-    <text x="60" y="56" text-anchor="middle" font-size="9" fill="#738199" font-family="Arial">GÖREV</text>
+    <text x="60" y="56" text-anchor="middle" font-size="9" fill="#738199" font-family="Arial">DUTIES</text>
     <text x="60" y="73" text-anchor="middle" font-size="18" font-weight="700" fill="#102245" font-family="Arial">${activeDuties.length}</text>
   </svg>`;
 
@@ -1607,7 +1640,7 @@ function buildResultsPdfDefinition(){
     ['Duty',dutyH,dutyValue,'#2F80ED'],
     ['Night',nightH,nightValue,'#7C6DF2']
   ];
-  if(instructorYes) barData.push(['TRI/SFI',triH,triValue,'#F5C56D']);
+  if(instructorYes) barData.push(['Instructor',triH,triValue,'#F5C56D']);
   const maxBar=Math.max(1,...barData.map(x=>x[1]));
   const barSvg=(v,color)=>{
     const w=Math.max(2,180*(v/maxBar));
@@ -1630,16 +1663,16 @@ function buildResultsPdfDefinition(){
   ]);
 
   const settings=[
-    ['Pozisyon',roleName],
+    ['Position',roleName],
     ['Seniority',selectedSeniority],
     ['Off to Duty',String(offCount)],
-    ['EUR/TL',fx]
+    ['EUR/TRY',fx]
   ];
   if(captainMode){
-    settings.splice(2,0,['SFI/TRI',instructorYes?'Yes':'No']);
-    settings.push(['Eğitim günleri',trainingDays]);
+    settings.splice(2,0,['Instructor',instructorYes?'Yes':'No']);
+    settings.push(['Instructor Duty Days',trainingDays]);
   }
-  settings.push(['Oluşturma',generatedAt]);
+  settings.push(['Generated',generatedAt]);
 
   const settingsTable={
     table:{widths:[86,'*'],body:settings.map(([k,v])=>[
@@ -1675,23 +1708,23 @@ function buildResultsPdfDefinition(){
         {width:64,image:'brandIcon',fit:[56,56]},
         {width:'*',stack:[
           {text:'ROSTER PAY',fontSize:9,bold:true,color:'#9ED0FF',characterSpacing:2.2,margin:[12,2,0,0]},
-          {text:'Aylık Roster Özeti',fontSize:25,bold:true,color:'#FFFFFF',margin:[12,5,0,0]},
+          {text:'Monthly Roster Summary',fontSize:25,bold:true,color:'#FFFFFF',margin:[12,5,0,0]},
           {text:`${rosterLabel} · ${roleName}`,fontSize:11,color:'#D8E8FA',margin:[12,5,0,0]}
         ]}
       ],margin:[0,0,0,22]},
 
       {table:{widths:['*'],body:[[
         {stack:[
-          {text:'TAHMİNİ TOPLAM KAZANÇ',fontSize:8,bold:true,color:'#6E7C93',characterSpacing:1.35},
+          {text:'ESTIMATED TOTAL EARNINGS',fontSize:8,bold:true,color:'#6E7C93',characterSpacing:1.35},
           {text:totalEur,fontSize:32,bold:true,color:'#102245',margin:[0,7,0,0]},
           {text:totalTl,fontSize:15,bold:true,color:'#60708A',margin:[0,4,0,0]},
-          {text:'Roster verileri ve seçili kullanıcı ayarları üzerinden hesaplanmıştır.',fontSize:7.5,color:'#8A96A8',margin:[0,10,0,0]}
+          {text:'Calculated from roster data and the selected user settings.',fontSize:7.5,color:'#8A96A8',margin:[0,10,0,0]}
         ],margin:[19,16,19,16],fillColor:'#FFFFFF'}
       ]]},layout:{hLineWidth:()=>0,vLineWidth:()=>0},margin:[0,0,0,14]},
 
       {columns:kpiCells,columnGap:8,margin:[0,0,0,18]},
 
-      {text:'AKTİVİTE GÖRÜNÜMÜ',style:'sectionLabel',margin:[0,0,0,8]},
+      {text:'ACTIVITY OVERVIEW',style:'sectionLabel',margin:[0,0,0,8]},
       {columns:[
         {width:'43%',table:{widths:['*'],body:[[
           {stack:[
@@ -1701,34 +1734,34 @@ function buildResultsPdfDefinition(){
         ]]},layout:{hLineWidth:()=>0,vLineWidth:()=>0}},
         {width:'57%',table:{widths:['*'],body:[[
           {stack:[
-            {text:'SÜRE DAĞILIMI',fontSize:8,bold:true,color:'#6B7890',characterSpacing:1,margin:[0,0,0,9]},
+            {text:'TIME DISTRIBUTION',fontSize:8,bold:true,color:'#6B7890',characterSpacing:1,margin:[0,0,0,9]},
             {table:{widths:[48,'*',48],body:activityRows},layout:{hLineWidth:()=>0,vLineWidth:()=>0,paddingTop:()=>4,paddingBottom:()=>4,paddingLeft:()=>0,paddingRight:()=>4}},
-            {text:'Ücret katsayıları ve hesap kuralları raporda gösterilmez.',fontSize:7.2,color:'#8994A6',margin:[0,10,0,0]}
+            {text:'Pay coefficients and calculation rules are not shown in this report.',fontSize:7.2,color:'#8994A6',margin:[0,10,0,0]}
           ],margin:[15,14,15,14],fillColor:'#F7F9FC'}
         ]]},layout:{hLineWidth:()=>0,vLineWidth:()=>0},margin:[10,0,0,0]}
       ],columnGap:0,margin:[0,0,0,17]},
 
       {columns:[
         {width:'52%',stack:[
-          {text:'ROSTER AYARLARI',style:'sectionLabel'},
+          {text:'ROSTER SETTINGS',style:'sectionLabel'},
           settingsTable
         ]},
         {width:'48%',stack:[
-          {text:'YATI ÖZETİ',style:'sectionLabel'},
+          {text:'LAYOVER SUMMARY',style:'sectionLabel'},
           {table:{widths:['*'],body:[[
             {text:$('hotelAutoSummary')?.textContent||'—',fontSize:9,color:'#33445E',margin:[12,12,12,12],fillColor:'#F7F9FC'}
           ]]},layout:{hLineWidth:()=>0,vLineWidth:()=>0}}
         ],margin:[14,0,0,0]}
       ],columnGap:8},
 
-      {text:'GÜNLÜK GÖREV DETAYLARI',fontSize:18,bold:true,color:'#102245',pageBreak:'before',margin:[0,0,0,3]},
+      {text:'DAILY DUTY DETAILS',fontSize:18,bold:true,color:'#102245',pageBreak:'before',margin:[0,0,0,3]},
       {text:rosterLabel,fontSize:9,color:'#71809A',margin:[0,0,0,13]},
       {table:{headerRows:1,dontBreakRows:true,
         widths:captainMode ? [26,42,42,'*',44,44,34,52] : [28,46,46,'*',48,48,38],
         body:[
           (captainMode
-            ? ['Gün','Report','Release','Tip','Duty','Night','Sektör','TRI/SFI']
-            : ['Gün','Report','Release','Tip','Duty','Night','Sektör']
+            ? ['Day','Report','Release','Type','Duty','Night','Sector','Instructor']
+            : ['Day','Report','Release','Type','Duty','Night','Sector']
           ).map(x=>({text:x,style:'dutyHead'})),
           ...dutyRows
         ]},layout:{
@@ -1737,7 +1770,7 @@ function buildResultsPdfDefinition(){
         hLineColor:()=> '#DFE6EF',vLineWidth:()=>0,
         paddingLeft:()=>5,paddingRight:()=>5,paddingTop:()=>6,paddingBottom:()=>6
       }},
-      {text:'* 00:00: önceki aydan devreden görev  •  24:00: ay sonu cutoff. Ay sonu cutoff için post-flight eklenmez.',style:'note',margin:[0,11,0,0]}
+      {text:'* 00:00: duty carried in from the previous month  •  24:00: month-end cutoff. No post-flight credit is added at the month-end cutoff.',style:'note',margin:[0,11,0,0]}
     ],
     images:{brandIcon:'data:image/png;base64,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'},
     defaultStyle:{font:'Roboto',fontSize:8.5,color:'#24324A'},
@@ -1751,10 +1784,10 @@ function buildResultsPdfDefinition(){
 }
 async function exportResultsPdf(){
   const exportBtn=$('pdfExportBtn');
-  if(!activeDuties.length){ $('status').textContent='Önce roster Ödemeyi Hesaplayun.'; return; }
-  if(!window.pdfMake){ $('status').textContent='PDF rapor motoru yüklenemedi. İnternet bağlantısını kontrol edin.'; return; }
+  if(!activeDuties.length){ $('status').textContent='Calculate the roster first.'; return; }
+  if(!window.pdfMake){ $('status').textContent='The PDF report engine could not be loaded. Check your internet connection.'; return; }
   const oldText=exportBtn?.textContent;
-  if(exportBtn){ exportBtn.disabled=true; exportBtn.textContent='PDF hazırlanıyor…'; }
+  if(exportBtn){ exportBtn.disabled=true; exportBtn.textContent='Preparing PDF…'; }
   try{
     const docDefinition=buildResultsPdfDefinition();
     const safeLabel=(currentRosterLabel||'Roster').replace(/[^0-9A-Za-zÇĞİÖŞÜçğıöşü_-]+/g,'_');
@@ -1764,11 +1797,11 @@ async function exportResultsPdf(){
       const a=document.createElement('a');
       a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),1500);
-      $('status').textContent=`PDF raporu hazır: ${filename}`;
+      $('status').textContent=`PDF report ready: ${filename}`;
       if(exportBtn){ exportBtn.disabled=false; exportBtn.textContent=oldText; }
     });
   }catch(e){
-    $('status').textContent='PDF raporu oluşturulamadı: '+e.message;
+    $('status').textContent='PDF report could not be created: '+e.message;
     if(exportBtn){ exportBtn.disabled=false; exportBtn.textContent=oldText; }
   }
 }
@@ -1799,15 +1832,15 @@ btn.addEventListener('click', async ()=>{
   try{
     btn.disabled=true;
     const sourceId=currentPdfMeta?.id||'—';
-    $('status').textContent='PDF okunuyor…';
+    $('status').textContent='Reading PDF…';
     activeCells = await extractPdf(selectedPdfFile,selectedPdfBuffer);
     activeDuties = pair(activeCells.map(c=>parseCell(c.day,c.lines)));
-    if(!activeDuties.length) throw new Error('Report/Release görevleri bulunamadı');
+    if(!activeDuties.length) throw new Error('No Report/Release duties were found');
     $('results').style.display='block';
     recalc();
-    $('status').textContent=APP_VERSION_LABEL+' ACTIVE · PDF okundu · Görev '+activeDuties.length+' · Yatı '+$('hotelAutoSummary').textContent;
+    $('status').textContent=APP_VERSION_LABEL+' ACTIVE · PDF processed · Duties '+activeDuties.length+' · Layovers '+$('hotelAutoSummary').textContent;
   }catch(e){
-    $('status').textContent='PDF okunamadı: '+e.message;
+    $('status').textContent='PDF could not be read: '+e.message;
   }finally{
     btn.disabled=!(selectedPdfFile&&selectedPdfBuffer);
   }
