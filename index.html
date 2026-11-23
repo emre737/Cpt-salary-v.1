@@ -498,7 +498,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.js"></script>
 <script>
-const APP_VERSION = '6.11.0';
+const APP_VERSION = '6.11.1';
 const APP_VERSION_LABEL = `V${APP_VERSION}`;
 const $ = id => document.getElementById(id);
 const file = $('pdfFile'), btn = $('parseBtn');
@@ -715,7 +715,7 @@ function groupLines(items){
 
 // Shared simulator alias recognition for both Duty and SFI/TRI credit.
 // Every recognized SIM family gets the same normal +00:30 post-SIM Duty treatment.
-const SIM_ALIAS_RX=/(BOEING-[A-Z0-9]+|GOZENS\d+(?:-[A-Z])?|GOZENAYT[A-D]?|AYTGOZEN[A-D]?|SXS?-?FTD[A-D]?|GOZEN[A-D]?)/i;
+const SIM_ALIAS_RX=/(BOEING-[A-Z0-9]+|TK(?:[\s-])?SIM[A-D](?:-[1-4])?|GOZENS\d+(?:-[A-Z])?|GOZENAYT[A-D]?|AYTGOZEN[A-D]?|SXS?-?FTD[A-D]?|GOZEN[A-D]?)/i;
 
 function parseCell(day, lines){
   const text=lines.join(' | ');
@@ -1290,7 +1290,7 @@ function detectSfiSimSessions(lines=[]){
   const seen=new Set();
 
   // Longest/specific patterns first so e.g. GOZENAYTC is not shortened to GOZENA.
-  // SXS?-?FTD also safely accepts SXS-FTD, SXSFTD and SXFTD roster variants.
+  // TK SIM / TK-SIM / TKSIM and SXS-FTD variants are normalized through the shared SIM alias regex.
   const rx=SIM_ALIAS_RX;
 
   for(const rawLine of (lines||[])){
